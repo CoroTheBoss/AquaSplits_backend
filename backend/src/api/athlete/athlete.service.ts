@@ -7,17 +7,11 @@ export class AthleteService {
   constructor(private readonly athleteRepository: AthleteRepository) {}
 
   async findAll(searchDto: AthleteSearchDto): Promise<AthleteDto[]> {
-    const { search, gender, nationality, limit = 50 } = searchDto;
-
+    const { search, limit = 50 } = searchDto;
     if (search) {
       return this.athleteRepository.search(search, limit);
     }
-
-    const filter: any = {};
-    if (gender) filter.gender = gender.toUpperCase();
-    if (nationality) filter.nationality = nationality.toUpperCase();
-
-    return this.athleteRepository.findWithFilter(filter, limit);
+    return this.athleteRepository.findWithFilter({}, limit);
   }
 
   async findOne(id: string): Promise<AthleteDto> {
@@ -25,15 +19,10 @@ export class AthleteService {
     if (!athlete) {
       throw new NotFoundException(`Athlete with ID ${id} not found`);
     }
-    return athlete as any;
+    return athlete;
   }
 
   async findByFicrId(ficrId: string): Promise<AthleteDto | null> {
-    return this.athleteRepository.findByFicrId(ficrId) as any;
-  }
-
-  async getStats() {
-    const total = await this.athleteRepository.count();
-    return { total };
+    return this.athleteRepository.findByFicrId(ficrId);
   }
 }

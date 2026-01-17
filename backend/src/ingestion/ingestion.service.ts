@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { IDataSource } from './interfaces/data-source.interface';
-import { FicrDataSourceService } from './ficr/ficr-data-source.service';
+import { FicrService } from '../sources/ficr/ficr.service';
 import { AthleteRepository } from '../database/repository/athlete.repository';
 import { RaceRepository } from '../database/repository/race.repository';
 import { ResultRepository } from '../database/repository/result.repository';
@@ -9,223 +8,107 @@ import { Types } from 'mongoose';
 @Injectable()
 export class IngestionService {
   private readonly logger = new Logger(IngestionService.name);
-  private readonly dataSources: Map<string, IDataSource> = new Map();
 
   constructor(
-    private readonly ficrDataSource: FicrDataSourceService,
+    private readonly ficrService: FicrService,
     private readonly athleteRepository: AthleteRepository,
     private readonly raceRepository: RaceRepository,
     private readonly resultRepository: ResultRepository,
-  ) {
-    // Register data sources
-    this.dataSources.set('ficr', ficrDataSource);
+  ) {}
+
+  async ingestRaces(year: number) {
+    this.logger.log(`Fetching races from FICR for year ${year}`);
+    const races = await this.ficrService.getRaces(year);
+    
+    this.logger.log(`Saving ${races.length} races to database`);
+    const saved = await this.raceRepository.bulkUpsert(races);
+    
+    this.logger.log(`Successfully ingested ${saved.length} races`);
+    return { count: saved.length, races: saved };
   }
 
-  /**
-   * Ingest races from a data source for a given year
-   */
-  async ingestRaces(sourceName: string, year: number) {
-    const dataSource = this.dataSources.get(sourceName);
-    if (!dataSource) {
-      throw new Error(`Data source '${sourceName}' not found`);
-    }
-
-    this.logger.log(`Fetching races from ${sourceName} for year ${year}`);
-    const races = await dataSource.fetchRaces(year);
-
-    this.logger.log(`Upserting ${races.length} races`);
-    const results = await this.raceRepository.bulkUpsert(races);
-
-    this.logger.log(`Successfully ingested ${results.length} races`);
-    return {
-      source: sourceName,
-      year,
-      count: results.length,
-      races: results,
-    };
-  }
-
-  /**
-   * Ingest athletes from a data source for a specific race
-   */
-  async ingestAthletes(
-    sourceName: string,
-    year: number,
-    raceId: string | number,
-    additionalParams?: Record<string, any>,
-  ) {
-    const dataSource = this.dataSources.get(sourceName);
-    if (!dataSource) {
-      throw new Error(`Data source '${sourceName}' not found`);
-    }
-
-    // First, get or find the race
-    let race;
-    if (typeof raceId === 'string' && Types.ObjectId.isValid(raceId)) {
-      race = await this.raceRepository.findById(raceId);
-    } else {
-      race = await this.raceRepository.findByFicrId(raceId.toString());
-    }
-
+  async ingestAthletes(year: number, raceId: string | number, teamCode: number) {
+    const race = await this.findRace(raceId);
     if (!race) {
       throw new Error(`Race not found: ${raceId}`);
     }
 
-    this.logger.log(
-      `Fetching athletes from ${sourceName} for race ${race._id} (${race.name})`,
-    );
-    const athletes = await dataSource.fetchAthletes(year, raceId, additionalParams);
-
-    this.logger.log(`Upserting ${athletes.length} athletes`);
-    const results = await this.athleteRepository.bulkUpsert(athletes);
-
-    this.logger.log(`Successfully ingested ${results.length} athletes`);
-    return {
-      source: sourceName,
-      raceId: race._id,
-      count: results.length,
-      athletes: results,
-    };
+    this.logger.log(`Fetching athletes from FICR for race ${race.name}`);
+    const athletes = await this.ficrService.getAthletes(teamCode, year, Number(raceId));
+    
+    this.logger.log(`Saving ${athletes.length} athletes to database`);
+    const saved = await this.athleteRepository.bulkUpsert(athletes);
+    
+    this.logger.log(`Successfully ingested ${saved.length} athletes`);
+    return { count: saved.length, athletes: saved };
   }
 
-  /**
-   * Ingest results for a specific athlete in a race
-   */
-  async ingestResults(
-    sourceName: string,
-    year: number,
-    raceId: string | number,
-    athleteId: string | number,
-    additionalParams?: Record<string, any>,
-  ) {
-    const dataSource = this.dataSources.get(sourceName);
-    if (!dataSource) {
-      throw new Error(`Data source '${sourceName}' not found`);
-    }
-
-    // Get or find the race
-    let race;
-    if (typeof raceId === 'string' && Types.ObjectId.isValid(raceId)) {
-      race = await this.raceRepository.findById(raceId);
-    } else {
-      race = await this.raceRepository.findByFicrId(raceId.toString());
-    }
-
+  async ingestResults(year: number, raceId: string | number, athleteId: string | number, teamCode: number) {
+    const race = await this.findRace(raceId);
     if (!race) {
       throw new Error(`Race not found: ${raceId}`);
     }
 
-    // Get or find the athlete
-    let athlete;
-    if (typeof athleteId === 'string' && Types.ObjectId.isValid(athleteId)) {
-      athlete = await this.athleteRepository.findById(athleteId);
-    } else {
-      athlete = await this.athleteRepository.findByFicrId(athleteId.toString());
-    }
-
+    const athlete = await this.findAthlete(athleteId);
     if (!athlete) {
       throw new Error(`Athlete not found: ${athleteId}`);
     }
 
-    this.logger.log(
-      `Fetching results from ${sourceName} for athlete ${athlete._id} in race ${race._id}`,
-    );
-    const results = await dataSource.fetchResults(
-      year,
-      raceId,
-      athleteId,
-      additionalParams,
-    );
+    if (!athlete.ficrId) {
+      throw new Error(`Athlete ${athlete._id} has no FICR ID`);
+    }
 
-    // Map FICR IDs to MongoDB ObjectIds
-    const mappedResults = results.map((result) => ({
+    this.logger.log(`Fetching results for athlete ${athlete.firstName} ${athlete.lastName}`);
+    const resultsData = await this.ficrService.getResults(teamCode, year, Number(raceId), Number(athlete.ficrId));
+    
+    const mappedResults = resultsData.map((result) => ({
       ...result,
       athlete: athlete._id,
       race: race._id,
     }));
 
-    this.logger.log(`Upserting ${mappedResults.length} results`);
-    const upsertedResults = await this.resultRepository.bulkUpsert(mappedResults);
-
-    this.logger.log(`Successfully ingested ${upsertedResults.length} results`);
-    return {
-      source: sourceName,
-      raceId: race._id,
-      athleteId: athlete._id,
-      count: upsertedResults.length,
-      results: upsertedResults,
-    };
+    this.logger.log(`Saving ${mappedResults.length} results to database`);
+    const saved = await this.resultRepository.bulkUpsert(mappedResults);
+    
+    this.logger.log(`Successfully ingested ${saved.length} results`);
+    return { count: saved.length, results: saved };
   }
 
-  /**
-   * Ingest complete race data (athletes + results) for a race
-   */
-  async ingestCompleteRace(
-    sourceName: string,
-    year: number,
-    raceId: string | number,
-    teamCode: number,
-  ) {
-    this.logger.log(
-      `Starting complete race ingestion for ${sourceName}, year ${year}, race ${raceId}`,
-    );
+  async ingestCompleteRace(year: number, raceId: string | number, teamCode: number) {
+    this.logger.log(`Starting complete race ingestion for race ${raceId}`);
 
-    // Step 1: Ensure race exists
-    let race;
-    if (typeof raceId === 'string' && Types.ObjectId.isValid(raceId)) {
-      race = await this.raceRepository.findById(raceId);
-    } else {
-      race = await this.raceRepository.findByFicrId(raceId.toString());
-    }
-
+    // Ensure race exists
+    let race = await this.findRace(raceId);
     if (!race) {
-      // Try to fetch races first
-      await this.ingestRaces(sourceName, year);
-      race = await this.raceRepository.findByFicrId(raceId.toString());
+      await this.ingestRaces(year);
+      race = await this.findRace(raceId);
       if (!race) {
         throw new Error(`Race ${raceId} not found after fetching schedule`);
       }
     }
 
-    // Step 2: Ingest athletes
-    const athletesResult = await this.ingestAthletes(sourceName, year, raceId, {
-      teamCode,
-    });
+    // Ingest athletes
+    const athletesResult = await this.ingestAthletes(year, raceId, teamCode);
 
-    // Step 3: Ingest results for each athlete
+    // Ingest results for each athlete
     const allResults: any[] = [];
     for (const athlete of athletesResult.athletes) {
       try {
-        const ficrId = athlete.ficrId;
-        if (!ficrId) {
-          this.logger.warn(
-            `Skipping athlete ${athlete._id} - no FICR ID found`,
-          );
+        if (!athlete.ficrId) {
+          this.logger.warn(`Skipping athlete ${athlete._id} - no FICR ID`);
           continue;
         }
 
-        const results = await this.ingestResults(
-          sourceName,
-          year,
-          raceId,
-          ficrId,
-          { teamCode },
-        );
-        allResults.push(...(results.results || []));
+        const results = await this.ingestResults(year, raceId, athlete.ficrId, teamCode);
+        allResults.push(...results.results);
       } catch (error: any) {
-        this.logger.error(
-          `Error ingesting results for athlete ${athlete._id}: ${error?.message || String(error)}`,
-        );
-        // Continue with other athletes
+        this.logger.error(`Error ingesting results for athlete ${athlete._id}: ${error?.message}`);
       }
     }
 
-    this.logger.log(
-      `Complete race ingestion finished: ${athletesResult.count} athletes, ${allResults.length} results`,
-    );
-
+    this.logger.log(`Complete race ingestion finished: ${athletesResult.count} athletes, ${allResults.length} results`);
     return {
-      race: race,
+      race,
       athletes: athletesResult.athletes,
       results: allResults,
       summary: {
@@ -235,18 +118,17 @@ export class IngestionService {
     };
   }
 
-  /**
-   * Register a new data source
-   */
-  registerDataSource(dataSource: IDataSource) {
-    this.dataSources.set(dataSource.getName(), dataSource);
-    this.logger.log(`Registered data source: ${dataSource.getName()}`);
+  private async findRace(raceId: string | number) {
+    if (typeof raceId === 'string' && Types.ObjectId.isValid(raceId)) {
+      return this.raceRepository.findById(raceId);
+    }
+    return this.raceRepository.findByFicrId(raceId.toString());
   }
 
-  /**
-   * Get list of available data sources
-   */
-  getAvailableSources(): string[] {
-    return Array.from(this.dataSources.keys());
+  private async findAthlete(athleteId: string | number) {
+    if (typeof athleteId === 'string' && Types.ObjectId.isValid(athleteId)) {
+      return this.athleteRepository.findById(athleteId);
+    }
+    return this.athleteRepository.findByFicrId(athleteId.toString());
   }
 }

@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { IngestionService } from './ingestion.service';
 import { IngestionController } from './ingestion.controller';
-import { FicrModule } from './ficr/ficr.module';
+import { FicrModule } from '../sources/ficr/ficr.module';
 import { DatabaseModule } from '../database/database.module';
 
 @Module({

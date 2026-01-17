@@ -17,9 +17,6 @@ export class AthleteRepository {
     return this.athleteModel.findOne({ ficrId }).exec();
   }
 
-  async findMany(ids: string[]): Promise<Athlete[]> {
-    return this.athleteModel.find({ _id: { $in: ids } }).exec();
-  }
 
   async search(query: string, limit = 50): Promise<Athlete[]> {
     const filter = {

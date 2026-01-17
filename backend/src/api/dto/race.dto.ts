@@ -13,31 +13,8 @@ export class RaceDto {
   updatedAt?: Date;
 }
 
-export class CreateRaceDto {
-  name: string;
-  date: Date;
-  location?: string;
-  poolLength?: number;
-  ficrRaceId?: string;
-  source?: string;
-  year?: number;
-}
-
-export class UpdateRaceDto {
-  name?: string;
-  date?: Date;
-  location?: string;
-  poolLength?: number;
-  ficrRaceId?: string;
-  source?: string;
-  year?: number;
-}
-
 export class RaceSearchDto {
   search?: string;
-  source?: string;
   year?: number;
-  poolLength?: number;
   limit?: number;
-  skip?: number;
 }

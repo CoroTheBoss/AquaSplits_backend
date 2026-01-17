@@ -12,28 +12,7 @@ export class AthleteDto {
   updatedAt?: Date;
 }
 
-export class CreateAthleteDto {
-  firstName: string;
-  lastName: string;
-  birthDate?: Date;
-  gender?: string;
-  ficrId?: string;
-  nationality?: string;
-}
-
-export class UpdateAthleteDto {
-  firstName?: string;
-  lastName?: string;
-  birthDate?: Date;
-  gender?: string;
-  ficrId?: string;
-  nationality?: string;
-}
-
 export class AthleteSearchDto {
   search?: string;
-  gender?: string;
-  nationality?: string;
   limit?: number;
-  skip?: number;
 }

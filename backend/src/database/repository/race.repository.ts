@@ -17,9 +17,6 @@ export class RaceRepository {
     return this.raceModel.findOne({ ficrRaceId }).exec();
   }
 
-  async findBySource(source: string): Promise<Race[]> {
-    return this.raceModel.find({ source }).exec();
-  }
 
   async findByYear(year: number): Promise<Race[]> {
     const startDate = new Date(year, 0, 1);

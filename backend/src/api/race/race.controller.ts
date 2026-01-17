@@ -11,11 +11,6 @@ export class RaceController {
     return this.raceService.findAll(query);
   }
 
-  @Get('stats')
-  async getStats() {
-    return this.raceService.getStats();
-  }
-
   @Get(':id')
   async findOne(@Param('id') id: string) {
     return this.raceService.findOne(id);

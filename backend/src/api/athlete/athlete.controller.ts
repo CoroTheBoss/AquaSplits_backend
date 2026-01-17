@@ -11,11 +11,6 @@ export class AthleteController {
     return this.athleteService.findAll(query);
   }
 
-  @Get('stats')
-  async getStats() {
-    return this.athleteService.getStats();
-  }
-
   @Get(':id')
   async findOne(@Param('id') id: string) {
     return this.athleteService.findOne(id);

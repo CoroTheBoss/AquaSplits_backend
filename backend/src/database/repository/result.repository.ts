@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Result } from '../schema/result.schema';
+import { Distance, Stroke } from '../schema/event.enum';
 
 @Injectable()
 export class ResultRepository {
@@ -42,9 +43,9 @@ export class ResultRepository {
       .exec();
   }
 
-  async findByEvent(event: string, limit = 100): Promise<Result[]> {
+  async findByEvent(distance: Distance, stroke: Stroke, limit = 100): Promise<Result[]> {
     return this.resultModel
-      .find({ event: new RegExp(event, 'i') })
+      .find({ 'event.distance': distance, 'event.stroke': stroke })
       .populate('athlete')
       .populate('race')
       .sort({ millis: 1 })
@@ -53,11 +54,12 @@ export class ResultRepository {
   }
 
   async findBestTimes(
-    event: string,
+    distance: Distance,
+    stroke: Stroke,
     limit = 10,
     gender?: string,
   ): Promise<Result[]> {
-    const filter: any = { event: new RegExp(event, 'i') };
+    const filter: any = { 'event.distance': distance, 'event.stroke': stroke };
     
     let query = this.resultModel
       .find(filter)
@@ -83,7 +85,8 @@ export class ResultRepository {
     const filter = {
       athlete: data.athlete,
       race: data.race,
-      event: data.event,
+      'event.distance': data.event?.distance,
+      'event.stroke': data.event?.stroke,
     };
     
     return this.resultModel.findOneAndUpdate(filter, data, {
@@ -98,7 +101,8 @@ export class ResultRepository {
         filter: {
           athlete: result.athlete,
           race: result.race,
-          event: result.event,
+          'event.distance': result.event?.distance,
+          'event.stroke': result.event?.stroke,
         },
         update: { $set: result },
         upsert: true,
@@ -110,20 +114,21 @@ export class ResultRepository {
     // Return the upserted documents - build query from all unique combinations
     const uniqueCombinations = new Set<string>();
     results.forEach((r) => {
-      if (r.athlete && r.race && r.event) {
+      if (r.athlete && r.race && r.event?.distance && r.event?.stroke) {
         uniqueCombinations.add(
-          `${r.athlete.toString()}_${r.race.toString()}_${r.event}`,
+          `${r.athlete.toString()}_${r.race.toString()}_${r.event.distance}_${r.event.stroke}`,
         );
       }
     });
 
     // Fetch all results that match any of the combinations
     const orConditions = Array.from(uniqueCombinations).map((combo) => {
-      const [athleteId, raceId, event] = combo.split('_');
+      const [athleteId, raceId, distance, stroke] = combo.split('_');
       return {
         athlete: new Types.ObjectId(athleteId),
         race: new Types.ObjectId(raceId),
-        event: event,
+        'event.distance': parseInt(distance, 10),
+        'event.stroke': stroke,
       };
     });
 

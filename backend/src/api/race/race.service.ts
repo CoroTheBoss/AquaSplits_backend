@@ -7,7 +7,7 @@ export class RaceService {
   constructor(private readonly raceRepository: RaceRepository) {}
 
   async findAll(searchDto: RaceSearchDto): Promise<RaceDto[]> {
-    const { search, source, year, poolLength, limit = 50 } = searchDto;
+    const { search, year, limit = 50 } = searchDto;
 
     if (search) {
       return this.raceRepository.search(search, limit);
@@ -17,14 +17,7 @@ export class RaceService {
       return this.raceRepository.findByYear(year);
     }
 
-    if (source) {
-      return this.raceRepository.findBySource(source);
-    }
-
-    const filter: any = {};
-    if (poolLength) filter.poolLength = poolLength;
-
-    return this.raceRepository.findWithFilter(filter, limit);
+    return this.raceRepository.findWithFilter({}, limit);
   }
 
   async findOne(id: string): Promise<RaceDto> {
@@ -37,10 +30,5 @@ export class RaceService {
 
   async findByFicrId(ficrRaceId: string): Promise<RaceDto | null> {
     return this.raceRepository.findByFicrId(ficrRaceId) as any;
-  }
-
-  async getStats() {
-    const total = await this.raceRepository.count();
-    return { total };
   }
 }
