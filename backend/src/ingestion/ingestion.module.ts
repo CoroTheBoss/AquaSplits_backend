@@ -1,11 +1,12 @@
-import { IngestionService } from './ingestion.service';
 import { Module } from '@nestjs/common';
-import { FicrClient } from './ficr/ficr.client';
+import { IngestionService } from './ingestion.service';
 import { IngestionController } from './ingestion.controller';
+import { FicrModule } from './ficr/ficr.module';
+import { DatabaseModule } from '../database/database.module';
 
 @Module({
-  providers: [IngestionService, FicrClient],
+  imports: [FicrModule, DatabaseModule],
+  providers: [IngestionService],
   controllers: [IngestionController],
-  exports: [],
 })
 export class IngestionModule {}

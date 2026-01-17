@@ -14,7 +14,7 @@ export class FicrClient {
       const response = await axios.get<FicrResponse<FicrRaceDto[]>>(url);
 
       if (!response.data.status) {
-        new Error(`FICR API returned error: ${response.data.message}`);
+        throw new Error(`FICR API returned error: ${response.data.message}`);
       }
 
       return response.data.data;
@@ -42,7 +42,7 @@ export class FicrClient {
       const response = await axios.get<FicrResponse<FicrAthleteBaseDto[]>>(url);
 
       if (!response.data.status) {
-        new Error(`FICR API returned error: ${response.data.message}`);
+        throw new Error(`FICR API returned error: ${response.data.message}`);
       }
 
       return response.data.data;
@@ -71,7 +71,7 @@ export class FicrClient {
       const response = await axios.get<FicrResponse<FicrAthleteSplitsDto>>(url);
 
       if (!response.data.status) {
-        new Error(`FICR API returned error: ${response.data.message}`);
+        throw new Error(`FICR API returned error: ${response.data.message}`);
       }
 
       return response.data.data;

@@ -1,39 +1,89 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Post, Param, Body, Get } from '@nestjs/common';
 import { IngestionService } from './ingestion.service';
-import { FicrRaceDto } from './ficr/dto/ficr-race.dto';
-import { FicrAthleteBaseDto } from './ficr/dto/ficr-athlete-base.dto';
-import { FicrAthleteSplitsDto } from './ficr/dto/ficr-athlete-splits.dto';
 
 @Controller('ingestion')
 export class IngestionController {
   constructor(private readonly ingestionService: IngestionService) {}
 
-  @Get('schedule/:year')
-  async getSchedule(@Param('year') year: string): Promise<FicrRaceDto[]> {
-    return this.ingestionService.getSchedule(+year);
+  @Get('sources')
+  async getAvailableSources() {
+    return {
+      sources: this.ingestionService.getAvailableSources(),
+    };
   }
 
-  @Get('athletes/:race/:teamCode/:year')
-  getAthletesList(
-    @Param('raceId') raceId: string,
-    @Param('teamCode') teamCode: string,
+  @Post('races/:source/:year')
+  async ingestRaces(
+    @Param('source') source: string,
     @Param('year') year: string,
-  ): Promise<FicrAthleteBaseDto[]> {
-    return this.ingestionService.getAthletesList(+year, +teamCode, +raceId);
+  ) {
+    return this.ingestionService.ingestRaces(source, +year);
   }
 
-  @Get('athlete/:race/:teamCode/:year/:athleteNumber')
-  getAthleteRaceTimes(
-    @Param('raceId') raceId: string,
-    @Param('teamCode') teamCode: string,
+  @Post('athletes/:source/:year/:raceId')
+  async ingestAthletes(
+    @Param('source') source: string,
     @Param('year') year: string,
-    @Param('athleteNumber') athleteNumber: string,
-  ): Promise<FicrAthleteSplitsDto> {
-    return this.ingestionService.getAthleteRaceTimes(
+    @Param('raceId') raceId: string,
+    @Body() body: { teamCode?: number; [key: string]: any },
+  ) {
+    return this.ingestionService.ingestAthletes(
+      source,
       +year,
-      +teamCode,
-      +raceId,
-      +athleteNumber,
+      raceId,
+      body,
     );
+  }
+
+  @Post('results/:source/:year/:raceId/:athleteId')
+  async ingestResults(
+    @Param('source') source: string,
+    @Param('year') year: string,
+    @Param('raceId') raceId: string,
+    @Param('athleteId') athleteId: string,
+    @Body() body: { teamCode?: number; [key: string]: any },
+  ) {
+    return this.ingestionService.ingestResults(
+      source,
+      +year,
+      raceId,
+      athleteId,
+      body,
+    );
+  }
+
+  @Post('complete-race/:source/:year/:raceId')
+  async ingestCompleteRace(
+    @Param('source') source: string,
+    @Param('year') year: string,
+    @Param('raceId') raceId: string,
+    @Body() body: { teamCode: number },
+  ) {
+    if (!body.teamCode) {
+      throw new Error('teamCode is required');
+    }
+    return this.ingestionService.ingestCompleteRace(
+      source,
+      +year,
+      raceId,
+      body.teamCode,
+    );
+  }
+
+  // Legacy endpoints for backward compatibility
+  @Post('ficr/schedule/:year')
+  async ingestFicrSchedule(@Param('year') year: string) {
+    return this.ingestionService.ingestRaces('ficr', +year);
+  }
+
+  @Post('ficr/athletes/:year/:teamCode/:raceId')
+  async ingestFicrAthletes(
+    @Param('year') year: string,
+    @Param('teamCode') teamCode: string,
+    @Param('raceId') raceId: string,
+  ) {
+    return this.ingestionService.ingestAthletes('ficr', +year, raceId, {
+      teamCode: +teamCode,
+    });
   }
 }
