@@ -1,13 +1,13 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { AthleteService } from './athlete.service';
-import { AthleteSearchDto } from '../dto/athlete.dto';
+import type { AthleteSearchQuery } from './athlete.types';
 
 @Controller('athletes')
 export class AthleteController {
   constructor(private readonly athleteService: AthleteService) {}
 
   @Get()
-  async findAll(@Query() query: AthleteSearchDto) {
+  async findAll(@Query() query: AthleteSearchQuery) {
     return this.athleteService.findAll(query);
   }
 

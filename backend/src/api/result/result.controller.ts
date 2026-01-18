@@ -1,6 +1,6 @@
 import { Controller, Get, Param, Query, ParseIntPipe } from '@nestjs/common';
 import { ResultService } from './result.service';
-import { ResultSearchDto } from '../dto/result.dto';
+import type { ResultSearchQuery } from './result.types';
 import { Distance, Stroke } from '../../database/schema/event.enum';
 
 @Controller('results')
@@ -8,7 +8,7 @@ export class ResultController {
   constructor(private readonly resultService: ResultService) {}
 
   @Get()
-  async findAll(@Query() query: ResultSearchDto) {
+  async findAll(@Query() query: ResultSearchQuery) {
     return this.resultService.findAll(query);
   }
 

@@ -1,9 +1,12 @@
 import { Schema, Prop, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import { Types } from 'mongoose';
 import { Distance, Stroke } from './event.enum';
+import { TimestampDocumentType, TimestampType } from './mongoose-types';
+import { AthleteWithId } from './athlete.schema';
+import { RaceWithId } from './race.schema';
 
 @Schema({ timestamps: true })
-export class Result extends Document {
+export class Result {
   @Prop({ type: Types.ObjectId, ref: 'Athlete', required: true, index: true })
   athlete: Types.ObjectId;
 
@@ -34,6 +37,13 @@ export class Result extends Document {
 }
 
 export const ResultSchema = SchemaFactory.createForClass(Result);
+
+export type ResultDocument = TimestampDocumentType<Result>;
+export type ResultWithId = TimestampType<Result>;
+export type ResultPopulatedWithId = Omit<ResultWithId, 'athlete' | 'race'> & {
+  athlete: AthleteWithId | null;
+  race: RaceWithId;
+};
 
 // Compound indexes for common queries
 ResultSchema.index({ athlete: 1, race: 1, 'event.distance': 1, 'event.stroke': 1 }, { unique: true });

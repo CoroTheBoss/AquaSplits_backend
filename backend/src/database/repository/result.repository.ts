@@ -1,55 +1,68 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Result } from '../schema/result.schema';
+import { Result, ResultDocument, ResultPopulatedWithId, ResultWithId } from '../schema/result.schema';
 import { Distance, Stroke } from '../schema/event.enum';
 
 @Injectable()
 export class ResultRepository {
   constructor(
-    @InjectModel(Result.name) private readonly resultModel: Model<Result>,
+    @InjectModel(Result.name) private readonly resultModel: Model<ResultDocument>,
   ) {}
 
-  async findById(id: string): Promise<Result | null> {
-    return this.resultModel.findById(id).populate('athlete').populate('race').exec();
+  async findById(id: string): Promise<ResultPopulatedWithId | null> {
+    return this.resultModel
+      .findById(id)
+      .populate('athlete')
+      .populate('race')
+      .lean<ResultPopulatedWithId>()
+      .exec();
   }
 
-  async findByAthlete(athleteId: string | Types.ObjectId): Promise<Result[]> {
+  async findByAthlete(athleteId: string | Types.ObjectId): Promise<ResultPopulatedWithId[]> {
     return this.resultModel
       .find({ athlete: athleteId })
       .populate('athlete')
       .populate('race')
       .sort({ 'race.date': -1 })
+      .lean<ResultPopulatedWithId[]>()
       .exec();
   }
 
-  async findByRace(raceId: string | Types.ObjectId): Promise<Result[]> {
+  async findByRace(raceId: string | Types.ObjectId): Promise<ResultPopulatedWithId[]> {
     return this.resultModel
       .find({ race: raceId })
       .populate('athlete')
       .populate('race')
       .sort({ millis: 1 })
+      .lean<ResultPopulatedWithId[]>()
       .exec();
   }
 
   async findByAthleteAndRace(
     athleteId: string | Types.ObjectId,
     raceId: string | Types.ObjectId,
-  ): Promise<Result[]> {
+  ): Promise<ResultPopulatedWithId[]> {
     return this.resultModel
       .find({ athlete: athleteId, race: raceId })
       .populate('athlete')
       .populate('race')
+      .lean<ResultPopulatedWithId[]>()
       .exec();
   }
 
-  async findByEvent(distance: Distance, stroke: Stroke, limit = 100): Promise<Result[]> {
+  async findByEvent(
+    distance: Distance,
+    stroke: Stroke,
+    limit = 100,
+  ): Promise<ResultPopulatedWithId[]> {
     return this.resultModel
       .find({ 'event.distance': distance, 'event.stroke': stroke })
       .populate('athlete')
       .populate('race')
       .sort({ millis: 1 })
       .limit(limit)
+      .lean<ResultPopulatedWithId[]>()
       .exec();
   }
 
@@ -58,10 +71,10 @@ export class ResultRepository {
     stroke: Stroke,
     limit = 10,
     gender?: string,
-  ): Promise<Result[]> {
+  ): Promise<ResultPopulatedWithId[]> {
     const filter: any = { 'event.distance': distance, 'event.stroke': stroke };
     
-    let query = this.resultModel
+    const query = this.resultModel
       .find(filter)
       .populate({
         path: 'athlete',
@@ -71,17 +84,17 @@ export class ResultRepository {
       .sort({ millis: 1 })
       .limit(limit);
     
-    const results = await query.exec();
+    const results = await query.lean<ResultPopulatedWithId[]>().exec();
     
     // Filter out results where athlete is null (due to gender mismatch)
     if (gender) {
-      return results.filter((r) => r.athlete !== null) as Result[];
+      return results.filter((r) => r.athlete !== null) as ResultPopulatedWithId[];
     }
     
     return results;
   }
 
-  async upsertOne(data: Partial<Result>): Promise<Result> {
+  async upsertOne(data: Partial<Result>): Promise<ResultWithId> {
     const filter = {
       athlete: data.athlete,
       race: data.race,
@@ -89,13 +102,16 @@ export class ResultRepository {
       'event.stroke': data.event?.stroke,
     };
     
-    return this.resultModel.findOneAndUpdate(filter, data, {
-      upsert: true,
-      new: true,
-    });
+    return this.resultModel
+      .findOneAndUpdate(filter, data, {
+        upsert: true,
+        new: true,
+      })
+      .lean<ResultWithId>()
+      .exec() as Promise<ResultWithId>;
   }
 
-  async bulkUpsert(results: Partial<Result>[]): Promise<Result[]> {
+  async bulkUpsert(results: Partial<Result>[]): Promise<ResultPopulatedWithId[]> {
     const operations = results.map((result) => ({
       updateOne: {
         filter: {
@@ -140,6 +156,7 @@ export class ResultRepository {
       .find({ $or: orConditions })
       .populate('athlete')
       .populate('race')
+      .lean<ResultPopulatedWithId[]>()
       .exec();
   }
 
@@ -152,13 +169,14 @@ export class ResultRepository {
     return result.deletedCount || 0;
   }
 
-  async findWithFilter(filter: any, limit = 100): Promise<Result[]> {
+  async findWithFilter(filter: any, limit = 100): Promise<ResultPopulatedWithId[]> {
     return this.resultModel
       .find(filter)
       .limit(limit)
       .populate('athlete')
       .populate('race')
       .sort({ 'race.date': -1 })
+      .lean<ResultPopulatedWithId[]>()
       .exec();
   }
 }

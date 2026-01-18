@@ -1,8 +1,8 @@
 import { Schema, Prop, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { TimestampDocumentType, TimestampType } from './mongoose-types';
 
 @Schema({ timestamps: true })
-export class Athlete extends Document {
+export class Athlete {
   @Prop({ required: true, index: true, trim: true })
   firstName: string;
 
@@ -23,6 +23,9 @@ export class Athlete extends Document {
 }
 
 export const AthleteSchema = SchemaFactory.createForClass(Athlete);
+
+export type AthleteDocument = TimestampDocumentType<Athlete>;
+export type AthleteWithId = TimestampType<Athlete>;
 
 // Compound indexes for common queries
 AthleteSchema.index({ firstName: 1, lastName: 1 });
