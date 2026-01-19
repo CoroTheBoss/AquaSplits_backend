@@ -1,7 +1,8 @@
 import { Controller, Get, Param, Query, ParseIntPipe } from '@nestjs/common';
 import { ResultService } from './result.service';
 import type { ResultSearchQuery } from './result.types';
-import { Distance, Stroke } from '../../database/schema/event.enum';
+import { Stroke } from '../../type/stroke.enum';
+import { Distance } from '../../type/distance.enum';
 
 @Controller('results')
 export class ResultController {

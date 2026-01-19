@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Athlete, AthleteDocument, AthleteWithId } from '../schema/athlete.schema';
+import {
+  Athlete,
+  AthleteDocument,
+  AthleteWithId,
+} from '../schema/athlete.schema';
 
 @Injectable()
 export class AthleteRepository {
@@ -23,7 +27,15 @@ export class AthleteRepository {
       $or: [
         { firstName: new RegExp(query, 'i') },
         { lastName: new RegExp(query, 'i') },
-        { $expr: { $regexMatch: { input: { $concat: ['$firstName', ' ', '$lastName'] }, regex: query, options: 'i' } } },
+        {
+          $expr: {
+            $regexMatch: {
+              input: { $concat: ['$firstName', ' ', '$lastName'] },
+              regex: query,
+              options: 'i',
+            },
+          },
+        },
       ],
     };
     return this.athleteModel
@@ -38,9 +50,12 @@ export class AthleteRepository {
       throw new Error('ficrId is required for upsert');
     }
     return this.athleteModel
-      .findOneAndUpdate({ ficrId: data.ficrId }, data, { upsert: true, new: true })
+      .findOneAndUpdate({ ficrId: data.ficrId }, data, {
+        upsert: true,
+        new: true,
+      })
       .lean<AthleteWithId>()
-      .exec() as Promise<AthleteWithId>;
+      .exec();
   }
 
   async bulkUpsert(athletes: Partial<Athlete>[]): Promise<AthleteWithId[]> {
@@ -53,7 +68,7 @@ export class AthleteRepository {
     }));
 
     await this.athleteModel.bulkWrite(operations);
-    
+
     // Return the upserted documents
     const ficrIds = athletes.map((a) => a.ficrId).filter(Boolean) as string[];
     return this.athleteModel

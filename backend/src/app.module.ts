@@ -3,13 +3,13 @@ import { ConfigModule } from '@nestjs/config';
 import { DatabaseModule } from './database/database.module';
 import { IngestionModule } from './ingestion/ingestion.module';
 import { ApiModule } from './api/api.module';
-import appConfig from './config/app.config';
+import { validateEnv } from './config/app.config';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig],
+      validate: validateEnv,
     }),
     DatabaseModule,
     IngestionModule,

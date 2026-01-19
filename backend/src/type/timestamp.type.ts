@@ -15,4 +15,3 @@ export type TimestampType<M> = M & {
   createdAt?: Date;
   updatedAt?: Date;
 };
-

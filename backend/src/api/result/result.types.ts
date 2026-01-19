@@ -1,4 +1,5 @@
-import { Distance, Stroke } from '../../database/schema/event.enum';
+import { Stroke } from '../../type/stroke.enum';
+import { Distance } from '../../type/distance.enum';
 
 export type { ResultPopulatedWithId } from '../../database/schema/result.schema';
 
@@ -9,4 +10,3 @@ export type ResultSearchQuery = {
   stroke?: Stroke;
   limit?: number;
 };
-

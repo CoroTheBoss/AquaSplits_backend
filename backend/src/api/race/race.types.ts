@@ -3,4 +3,3 @@ export type RaceSearchQuery = {
   year?: number;
   limit?: number;
 };
-

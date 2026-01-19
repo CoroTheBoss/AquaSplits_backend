@@ -77,7 +77,7 @@ backend/
 │   │   │   ├── athlete.schema.ts
 │   │   │   ├── race.schema.ts
 │   │   │   ├── result.schema.ts
-│   │   │   └── event.enum.ts
+│   │   │   └── stroke.enum.ts
 │   │   └── repository/        # Database repositories
 │   │       ├── athlete.repository.ts
 │   │       ├── race.repository.ts

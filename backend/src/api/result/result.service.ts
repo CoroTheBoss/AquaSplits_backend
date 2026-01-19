@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ResultRepository } from '../../database/repository/result.repository';
-import { Distance, Stroke } from '../../database/schema/event.enum';
+import { Stroke } from '../../type/stroke.enum';
 import { ResultPopulatedWithId, ResultSearchQuery } from './result.types';
+import { Distance } from '../../type/distance.enum';
 
 @Injectable()
 export class ResultService {

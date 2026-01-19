@@ -3,8 +3,9 @@ import { FicrRaceDto } from './dto/ficr-race.dto';
 import { FicrAthleteBaseDto } from './dto/ficr-athlete-base.dto';
 import { FicrAthleteSplitsDto } from './dto/ficr-athlete-splits.dto';
 import { FicrTempoDto } from './dto/fict-tempo.dto';
-import { Distance, Stroke } from '../../database/schema/event.enum';
+import { Stroke } from '../../type/stroke.enum';
 import { Types } from 'mongoose';
+import { Distance } from '../../type/distance.enum';
 
 @Injectable()
 export class FicrParser {

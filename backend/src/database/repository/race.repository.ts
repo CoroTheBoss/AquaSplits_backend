@@ -17,7 +17,6 @@ export class RaceRepository {
     return this.raceModel.findOne({ ficrRaceId }).lean<RaceWithId>().exec();
   }
 
-
   async findByYear(year: number): Promise<RaceWithId[]> {
     const startDate = new Date(year, 0, 1);
     const endDate = new Date(year + 1, 0, 1);
@@ -55,14 +54,14 @@ export class RaceRepository {
     const filter = data.ficrRaceId
       ? { ficrRaceId: data.ficrRaceId }
       : { name: data.name, date: data.date, source: data.source };
-    
+
     return this.raceModel
       .findOneAndUpdate(filter, data, {
         upsert: true,
         new: true,
       })
       .lean<RaceWithId>()
-      .exec() as Promise<RaceWithId>;
+      .exec();
   }
 
   async bulkUpsert(races: Partial<Race>[]): Promise<RaceWithId[]> {
@@ -70,7 +69,7 @@ export class RaceRepository {
       const filter = race.ficrRaceId
         ? { ficrRaceId: race.ficrRaceId }
         : { name: race.name, date: race.date, source: race.source };
-      
+
       return {
         updateOne: {
           filter,
@@ -81,19 +80,17 @@ export class RaceRepository {
     });
 
     await this.raceModel.bulkWrite(operations);
-    
+
     // Return the upserted documents
-    const ficrIds = races
-      .map((r) => r.ficrRaceId)
-      .filter(Boolean) as string[];
-    
+    const ficrIds = races.map((r) => r.ficrRaceId).filter(Boolean) as string[];
+
     if (ficrIds.length > 0) {
       return this.raceModel
         .find({ ficrRaceId: { $in: ficrIds } })
         .lean<RaceWithId[]>()
         .exec();
     }
-    
+
     // Fallback: return by name/date/source if no ficrIds
     return Promise.all(
       races.map((race) =>

@@ -7,18 +7,15 @@ import { Result, ResultSchema } from './schema/result.schema';
 import { AthleteRepository } from './repository/athlete.repository';
 import { RaceRepository } from './repository/race.repository';
 import { ResultRepository } from './repository/result.repository';
+import { createMongooseOptions } from '../config/database.config';
+import type { AppConfig } from '../config/app.config';
 
 @Module({
   imports: [
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
-        uri: configService.get<string>('database.uri'),
-        maxPoolSize: 10,
-        minPoolSize: 2,
-        serverSelectionTimeoutMS: 5000,
-        socketTimeoutMS: 45000,
-      }),
+      useFactory: (configService: ConfigService<AppConfig>) =>
+        createMongooseOptions(configService),
       inject: [ConfigService],
     }),
     MongooseModule.forFeature([

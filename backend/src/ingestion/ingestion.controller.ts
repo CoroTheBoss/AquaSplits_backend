@@ -26,7 +26,12 @@ export class IngestionController {
     @Param('athleteId') athleteId: string,
     @Body() body: { teamCode: number },
   ) {
-    return this.ingestionService.ingestResults(+year, raceId, athleteId, body.teamCode);
+    return this.ingestionService.ingestResults(
+      +year,
+      raceId,
+      athleteId,
+      body.teamCode,
+    );
   }
 
   @Post('complete-race/:year/:raceId')
@@ -35,6 +40,10 @@ export class IngestionController {
     @Param('raceId') raceId: string,
     @Body() body: { teamCode: number },
   ) {
-    return this.ingestionService.ingestCompleteRace(+year, raceId, body.teamCode);
+    return this.ingestionService.ingestCompleteRace(
+      +year,
+      raceId,
+      body.teamCode,
+    );
   }
 }

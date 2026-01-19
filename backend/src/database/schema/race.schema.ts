@@ -1,5 +1,5 @@
 import { Schema, Prop, SchemaFactory } from '@nestjs/mongoose';
-import { TimestampDocumentType, TimestampType } from './mongoose-types';
+import { TimestampDocumentType, TimestampType } from '../../type/timestamp.type';
 
 @Schema({ timestamps: true })
 export class Race {
@@ -33,4 +33,7 @@ export type RaceWithId = TimestampType<Race>;
 // Compound indexes for common queries
 RaceSchema.index({ source: 1, date: -1 });
 RaceSchema.index({ year: 1, date: 1 });
-RaceSchema.index({ name: 1, date: 1, source: 1 }, { unique: true, sparse: true });
+RaceSchema.index(
+  { name: 1, date: 1, source: 1 },
+  { unique: true, sparse: true },
+);

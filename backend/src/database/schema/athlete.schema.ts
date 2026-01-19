@@ -1,5 +1,5 @@
 import { Schema, Prop, SchemaFactory } from '@nestjs/mongoose';
-import { TimestampDocumentType, TimestampType } from './mongoose-types';
+import { TimestampDocumentType, TimestampType } from '../../type/timestamp.type';
 
 @Schema({ timestamps: true })
 export class Athlete {
