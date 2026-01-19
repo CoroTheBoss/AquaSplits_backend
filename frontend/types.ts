@@ -11,7 +11,7 @@ export interface Race {
   distance: Distance;
   time: string; // Format: MM:SS.mm or SS.mm
   splits?: string[]; // Optional array of cumulative split times
-  splitInterval?: 25 | 50; // Split interval used for this race
+  splitInterval?: 25 | 50; // Split interval used for this competition
   date: string; // ISO date string
 }
 

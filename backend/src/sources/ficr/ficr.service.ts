@@ -1,8 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { FicrClient } from './ficr.client';
 import { FicrParser } from './ficr.parser';
-import { Race } from '../../database/schema/race.schema';
-import { Athlete } from '../../database/schema/athlete.schema';
+import { Competition } from '../../database/schema/competition.schema';
 
 @Injectable()
 export class FicrService {
@@ -11,18 +10,9 @@ export class FicrService {
     private readonly parser: FicrParser,
   ) {}
 
-  async getRaces(year: number): Promise<Partial<Race>[]> {
+  async getRaces(year: number): Promise<Partial<Competition>[]> {
     const dtos = await this.client.fetchSchedule(year);
     return dtos.map((dto) => this.parser.parseRace(dto));
-  }
-
-  async getAthletes(
-    teamCode: number,
-    year: number,
-    raceId: number,
-  ): Promise<Partial<Athlete>[]> {
-    const dtos = await this.client.fetchAthletes(teamCode, year, raceId);
-    return dtos.map((dto) => this.parser.parseAthlete(dto));
   }
 
   async getResults(

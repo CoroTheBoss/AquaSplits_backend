@@ -118,7 +118,7 @@ export default function RaceForm({ onSubmit, onCancel }: RaceFormProps) {
 
     // Time is required if splits are not enabled
     if (!showSplits && !formData.time) {
-      Alert.alert('Missing Information', 'Please enter a race time');
+      Alert.alert('Missing Information', 'Please enter a competition time');
       return;
     }
 

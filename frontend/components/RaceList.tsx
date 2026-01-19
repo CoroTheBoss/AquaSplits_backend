@@ -69,7 +69,7 @@ export default function RaceList({ races, onDelete }: RaceListProps) {
           <TouchableOpacity
             style={styles.deleteButton}
             onPress={() => {
-              console.log('Delete button pressed for race:', item.id);
+              console.log('Delete button pressed for competition:', item.id);
               onDelete(item.id);
             }}
             activeOpacity={0.7}

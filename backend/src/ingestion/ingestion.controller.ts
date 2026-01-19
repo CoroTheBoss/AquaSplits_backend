@@ -5,6 +5,7 @@ import { IngestionService } from './ingestion.service';
 export class IngestionController {
   constructor(private readonly ingestionService: IngestionService) {}
 
+  /*
   @Post('races/:year')
   async ingestRaces(@Param('year') year: string) {
     return this.ingestionService.ingestRaces(+year);
@@ -34,7 +35,7 @@ export class IngestionController {
     );
   }
 
-  @Post('complete-race/:year/:raceId')
+  @Post('complete-competition/:year/:raceId')
   async ingestCompleteRace(
     @Param('year') year: string,
     @Param('raceId') raceId: string,
@@ -46,4 +47,5 @@ export class IngestionController {
       body.teamCode,
     );
   }
+   */
 }

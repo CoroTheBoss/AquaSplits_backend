@@ -75,12 +75,12 @@ backend/
 │   ├── database/             # Database layer
 │   │   ├── schema/           # Mongoose schemas
 │   │   │   ├── athlete.schema.ts
-│   │   │   ├── race.schema.ts
+│   │   │   ├── competition.schema.ts
 │   │   │   ├── result.schema.ts
 │   │   │   └── stroke.enum.ts
 │   │   └── repository/        # Database repositories
 │   │       ├── athlete.repository.ts
-│   │       ├── race.repository.ts
+│   │       ├── competition.repository.ts
 │   │       └── result.repository.ts
 │   │
 │   ├── api/                  # Query API

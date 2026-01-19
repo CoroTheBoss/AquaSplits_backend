@@ -2,13 +2,15 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Athlete, AthleteSchema } from './schema/athlete.schema';
-import { Race, RaceSchema } from './schema/race.schema';
+import { Competition, CompetitionSchema } from './schema/competition.schema';
 import { Result, ResultSchema } from './schema/result.schema';
 import { AthleteRepository } from './repository/athlete.repository';
-import { RaceRepository } from './repository/race.repository';
 import { ResultRepository } from './repository/result.repository';
 import { createMongooseOptions } from '../config/database.config';
 import type { AppConfig } from '../config/app.config';
+import { CompetitionRepository } from './repository/competition.repository';
+import { Race, RaceSchema } from './schema/race.schema';
+import { RaceRepository } from './repository/race.repository';
 
 @Module({
   imports: [
@@ -20,16 +22,23 @@ import type { AppConfig } from '../config/app.config';
     }),
     MongooseModule.forFeature([
       { name: Athlete.name, schema: AthleteSchema },
-      { name: Race.name, schema: RaceSchema },
+      { name: Competition.name, schema: CompetitionSchema },
       { name: Result.name, schema: ResultSchema },
+      { name: Race.name, schema: RaceSchema },
     ]),
   ],
-  providers: [AthleteRepository, RaceRepository, ResultRepository],
+  providers: [
+    AthleteRepository,
+    CompetitionRepository,
+    ResultRepository,
+    RaceRepository,
+  ],
   exports: [
     MongooseModule,
     AthleteRepository,
-    RaceRepository,
+    CompetitionRepository,
     ResultRepository,
+    RaceRepository,
   ],
 })
 export class DatabaseModule {}

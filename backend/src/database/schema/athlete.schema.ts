@@ -1,25 +1,31 @@
 import { Schema, Prop, SchemaFactory } from '@nestjs/mongoose';
-import { TimestampDocumentType, TimestampType } from '../../type/timestamp.type';
+import {
+  TimestampDocumentType,
+  TimestampType,
+} from '../../type/timestamp.type';
 
 @Schema({ timestamps: true })
 export class Athlete {
-  @Prop({ required: true, index: true, trim: true })
+  @Prop({ required: true, index: true })
   firstName: string;
 
-  @Prop({ required: true, index: true, trim: true })
+  @Prop({ required: true, index: true })
   lastName: string;
 
+  @Prop({ required: true, index: true })
+  code: string;
+
   @Prop({ index: true })
-  birthDate?: Date;
+  birthYear?: number;
 
   @Prop({ index: true, enum: ['M', 'F'], uppercase: true })
   gender?: string;
 
-  @Prop({ unique: true, sparse: true, index: true })
-  ficrId?: string; // ID from FICR if available
-
-  @Prop({ index: true, uppercase: true, trim: true })
+  @Prop({ index: true, uppercase: true })
   nationality?: string;
+
+  @Prop({ index: true })
+  team: string;
 }
 
 export const AthleteSchema = SchemaFactory.createForClass(Athlete);

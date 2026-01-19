@@ -11,7 +11,7 @@ export async function saveRace(race: Race): Promise<void> {
     races.push(race);
     await AsyncStorage.setItem(RACES_KEY, JSON.stringify(races));
   } catch (error) {
-    console.error('Error saving race:', error);
+    console.error('Error saving competition:', error);
     throw error;
   }
 }
@@ -32,7 +32,7 @@ export async function deleteRace(id: string): Promise<void> {
     const filtered = races.filter(r => r.id !== id);
     await AsyncStorage.setItem(RACES_KEY, JSON.stringify(filtered));
   } catch (error) {
-    console.error('Error deleting race:', error);
+    console.error('Error deleting competition:', error);
     throw error;
   }
 }

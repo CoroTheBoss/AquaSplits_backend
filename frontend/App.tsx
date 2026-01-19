@@ -52,17 +52,17 @@ function AppContent() {
       setRaces(prev => [...prev, newRace]);
       setViewMode('home');
     } catch (error) {
-      console.error('Error saving race:', error);
-      Alert.alert('Error', 'Failed to save race');
+      console.error('Error saving competition:', error);
+      Alert.alert('Error', 'Failed to save competition');
     }
   };
 
   const handleDeleteRace = (id: string) => {
-    console.log('Delete button clicked for race:', id);
+    console.log('Delete button clicked for competition:', id);
     const raceToDelete = races.find(r => r.id === id);
     const raceDescription = raceToDelete 
       ? `${raceToDelete.distance}m ${raceToDelete.stroke === 'individual medley' ? 'IM' : raceToDelete.stroke} (${raceToDelete.time})`
-      : 'this race';
+      : 'this competition';
     
     Alert.alert(
       'Delete Race',
@@ -77,13 +77,13 @@ function AppContent() {
           style: 'destructive',
           onPress: async () => {
             try {
-              console.log('Deleting race:', id);
+              console.log('Deleting competition:', id);
               await deleteRace(id);
               setRaces(prev => prev.filter(r => r.id !== id));
               console.log('Race deleted successfully');
             } catch (error) {
-              console.error('Error deleting race:', error);
-              Alert.alert('Error', 'Failed to delete race. Please try again.');
+              console.error('Error deleting competition:', error);
+              Alert.alert('Error', 'Failed to delete competition. Please try again.');
             }
           },
         },

@@ -1,41 +1,45 @@
 import { Injectable } from '@nestjs/common';
 import { FicrRaceDto } from './dto/ficr-race.dto';
-import { FicrAthleteBaseDto } from './dto/ficr-athlete-base.dto';
-import { FicrAthleteSplitsDto } from './dto/ficr-athlete-splits.dto';
 import { FicrTempoDto } from './dto/fict-tempo.dto';
 import { Stroke } from '../../type/stroke.enum';
 import { Types } from 'mongoose';
 import { Distance } from '../../type/distance.enum';
+import { Source } from '../../type/source.enum';
+import { PoolLength } from '../../type/pool-length.enum';
+import { CompetitionDocument } from '../../database/schema/competition.schema';
+import {
+  FicrAthleteDto,
+  FicrAthleteEntryListDto,
+  FicrAthleteSplitsDto,
+} from './dto/ficr-athlete.dto';
+import { AthleteDocument } from '../../database/schema/athlete.schema';
 
 @Injectable()
 export class FicrParser {
-  parseRace(dto: FicrRaceDto) {
-    const raceDate = dto.Data ? new Date(dto.Data) : new Date();
-    const year = raceDate.getFullYear() || dto.Year;
+  parseRace(dto: FicrRaceDto): Partial<CompetitionDocument> {
+    const raceDate = new Date(dto.Data);
 
     return {
-      name: dto.Description || dto.ma_Descrizione || 'Unknown Race',
+      name: dto.Description || dto.DSC || dto.ma_Descrizione,
+      ficrTeam: dto.TeamCode,
       date: raceDate,
-      location: dto.Place || '',
-      poolLength: dto.pi_LunghezzaVasca || 50,
-      ficrRaceId: dto.ID.toString(),
-      source: 'ficr',
-      year: year,
+      location: dto.Place,
+      poolLength: dto.pi_LunghezzaVasca,
+      ficrId: dto.ID,
+      nLanes: dto.pi_NumeroCorsie,
+      source: Source.FICR,
     };
   }
 
-  parseAthlete(
-    dto: FicrAthleteBaseDto | { atleta: FicrAthleteBaseDto },
-    athleteNumber?: number,
-  ) {
-    const athlete = 'atleta' in dto ? dto.atleta : dto;
-    const num =
-      athleteNumber || ('Numero' in athlete ? athlete.Numero : undefined);
-
+  parseAthlete(dto: FicrAthleteDto): Partial<AthleteDocument> {
     return {
-      firstName: athlete.Nome || '',
-      lastName: athlete.Cognome || '',
-      ficrId: num ? num.toString() : undefined,
+      firstName: dto.Nome,
+      lastName: dto.Cognome,
+      code: dto.Codice,
+      birthYear: dto.Anno,
+      gender: dto.Sex,
+      nationality: dto.Naz,
+      team: dto.Soc,
     };
   }
 
@@ -179,5 +183,23 @@ export class FicrParser {
         : 0;
       return seconds * 1000 + millis;
     }
+  }
+
+  private parsePoolLength(
+    input: string | number | undefined,
+  ): PoolLength | undefined {
+    if (!input) return undefined;
+
+    const normalized =
+      typeof input === 'number'
+        ? input
+        : Number(String(input).match(/\d+/)?.[0]);
+
+    const map: Record<number, PoolLength> = {
+      25: PoolLength.L25,
+      50: PoolLength.L50,
+    };
+
+    return map[normalized];
   }
 }
