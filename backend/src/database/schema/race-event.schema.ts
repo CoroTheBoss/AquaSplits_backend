@@ -10,14 +10,14 @@ import { Distance } from '../../type/distance.enum';
 export class RaceEvent {
   @Prop({
     type: Number,
-    enum: Object.values(Distance),
+    enum: Distance,
     required: true,
   })
   distance: Distance;
 
   @Prop({
     type: String,
-    enum: Object.values(Stroke),
+    enum: Stroke,
     required: true,
   })
   stroke: Stroke;
