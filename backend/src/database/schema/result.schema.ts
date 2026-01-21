@@ -1,12 +1,10 @@
 import { Schema, Prop, SchemaFactory } from '@nestjs/mongoose';
 import { Types } from 'mongoose';
-import { Stroke } from '../../type/stroke.enum';
 import {
   TimestampDocumentType,
   TimestampType,
 } from '../../type/timestamp.type';
-import { Distance } from '../../type/distance.enum';
-
+import { Split } from '../../type/spllit.type';
 
 @Schema({ timestamps: true })
 export class Result {
@@ -17,13 +15,16 @@ export class Result {
   race: Types.ObjectId;
 
   @Prop({ required: true })
-  time: string; // e.g. "00:58.45"
+  displayTime: string; // e.g. "2'35.76"
 
   @Prop({ required: true, index: true })
   millis: number;
 
   @Prop({ index: true })
   rank?: number;
+
+  @Prop()
+  splits?: Split[];
 }
 
 export const ResultSchema = SchemaFactory.createForClass(Result);

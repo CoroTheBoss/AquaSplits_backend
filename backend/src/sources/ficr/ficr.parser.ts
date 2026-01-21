@@ -7,16 +7,13 @@ import { Distance } from '../../type/distance.enum';
 import { Source } from '../../type/source.enum';
 import { PoolLength } from '../../type/pool-length.enum';
 import { CompetitionDocument } from '../../database/schema/competition.schema';
-import {
-  FicrAthleteDto,
-  FicrAthleteEntryListDto,
-  FicrAthleteSplitsDto,
-} from './dto/ficr-athlete.dto';
+import { FicrAthleteDto, FicrAthleteSplitsDto } from './dto/ficr-athlete.dto';
 import { AthleteDocument } from '../../database/schema/athlete.schema';
+import { ResultWithId } from '../../database/schema/result.schema';
 
 @Injectable()
 export class FicrParser {
-  parseRace(dto: FicrRaceDto): Partial<CompetitionDocument> {
+  parseCompetition(dto: FicrRaceDto): Partial<CompetitionDocument> {
     const raceDate = new Date(dto.Data);
 
     return {
@@ -43,54 +40,43 @@ export class FicrParser {
     };
   }
 
-  parseResult(
-    athleteId: string | Types.ObjectId,
-    raceId: string | Types.ObjectId,
-    tempoDto: FicrTempoDto,
-  ) {
-    const time = tempoDto.Tempo || '';
-    if (!time) return null;
-
-    const eventStr = tempoDto.DescrGara || tempoDto.ba_Descrizione || '';
-    const event = this.parseEvent(eventStr);
-
-    if (!event) {
-      const distance = tempoDto.Metri as Distance;
-      if (distance && Object.values(Distance).includes(distance)) {
-        return {
-          athlete: athleteId,
-          race: raceId,
-          event: { distance, stroke: Stroke.FREESTYLE },
-          time,
-          millis: this.timeToMillis(time),
-          rank: tempoDto.Pos || undefined,
-        };
-      }
-      return null;
-    }
-
-    return {
-      athlete: athleteId,
-      race: raceId,
-      event: { distance: event.distance, stroke: event.stroke },
-      time,
-      millis: this.timeToMillis(time),
-      rank: tempoDto.Pos || undefined,
-    };
-  }
-
   parseResults(
-    athleteId: string | Types.ObjectId,
-    raceId: string | Types.ObjectId,
-    splitsDto: FicrAthleteSplitsDto,
-  ) {
-    if (!splitsDto.tempi || splitsDto.tempi.length === 0) {
-      return [];
-    }
+    dto: FicrTempoDto[],
+    athleteId: Types.ObjectId,
+    raceId: Types.ObjectId,
+  ): Partial<ResultWithId>[] {
+    // Raggruppa per DescrGara usando reduce
+    const eventsMap = dto.reduce((map, tempo) => {
+      const key = tempo.DescrGara.trim();
+      const arr = map.get(key) ?? [];
+      arr.push(tempo);
+      map.set(key, arr);
+      return map;
+    }, new Map<string, FicrTempoDto[]>());
 
-    return splitsDto.tempi
-      .map((tempo) => this.parseResult(athleteId, raceId, tempo))
-      .filter((result) => result !== null);
+    // Costruisci risultati usando map
+    return Array.from(eventsMap.entries()).map(([, tempi]) => {
+      const sortedTempi = tempi
+        .filter((t) => t.Tempo && t.Stato === 2) // opzionale: solo tempi validi
+        .sort((a, b) => a.Metri - b.Metri);
+
+      const splits = sortedTempi.map((t) => ({
+        distance: t.Metri,
+        displayTime: t.Tempo.trim(),
+        millis: this.timeToMillis(t.Tempo.trim()),
+      }));
+
+      const finalSplit = splits[splits.length - 1];
+
+      return {
+        athlete: athleteId,
+        race: raceId,
+        displayTime: finalSplit.displayTime,
+        millis: finalSplit.millis,
+        rank: sortedTempi[0]?.Pos,
+        splits,
+      };
+    });
   }
 
   private parseEvent(

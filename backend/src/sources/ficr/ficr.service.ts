@@ -12,7 +12,7 @@ export class FicrService {
 
   async getRaces(year: number): Promise<Partial<Competition>[]> {
     const dtos = await this.client.fetchSchedule(year);
-    return dtos.map((dto) => this.parser.parseRace(dto));
+    return dtos.map((dto) => this.parser.parseCompetition(dto));
   }
 
   async getResults(
@@ -28,12 +28,6 @@ export class FicrService {
       athleteNumber,
     );
     // Return raw parsed results without IDs - ingestion service will map them
-    return dto.tempi
-      .map((tempo) => this.parser.parseResult(null as any, null as any, tempo))
-      .filter((result) => result !== null)
-      .map((result) => {
-        const { athlete, race, ...rest } = result;
-        return rest;
-      });
+    return this.parser.parseResults(dto.tempi, null as any, null as any);
   }
 }
