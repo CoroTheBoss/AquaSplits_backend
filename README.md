@@ -1,4 +1,4 @@
-# AquaSplit
+# AquaSplits
 
 AquaSplit is a **cross-platform application** (web and mobile) for collecting, analyzing, and comparing swimming race data, with a focus on **Masters swimming**.  
 It provides structured race results, performance comparisons, and **data-driven insights** to help swimmers track progress across events, seasons, and competitors.
