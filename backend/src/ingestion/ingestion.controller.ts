@@ -5,47 +5,15 @@ import { IngestionService } from './ingestion.service';
 export class IngestionController {
   constructor(private readonly ingestionService: IngestionService) {}
 
-  /*
-  @Post('races/:year')
-  async ingestRaces(@Param('year') year: string) {
-    return this.ingestionService.ingestRaces(+year);
+  // ======================= FICR ======================= //
+
+  @Post('ficr/:year')
+  async ingestFicr(@Param('year') year: string) {
+    return await this.ingestionService.ingestFicr(+year);
   }
 
-  @Post('athletes/:year/:raceId')
-  async ingestAthletes(
-    @Param('year') year: string,
-    @Param('raceId') raceId: string,
-    @Body() body: { teamCode: number },
-  ) {
-    return this.ingestionService.ingestAthletes(+year, raceId, body.teamCode);
+  @Post('ficr')
+  async ingestAllFicr() {
+    return await this.ingestionService.ingestAllFicr();
   }
-
-  @Post('results/:year/:raceId/:athleteId')
-  async ingestResults(
-    @Param('year') year: string,
-    @Param('raceId') raceId: string,
-    @Param('athleteId') athleteId: string,
-    @Body() body: { teamCode: number },
-  ) {
-    return this.ingestionService.ingestResults(
-      +year,
-      raceId,
-      athleteId,
-      body.teamCode,
-    );
-  }
-
-  @Post('complete-competition/:year/:raceId')
-  async ingestCompleteRace(
-    @Param('year') year: string,
-    @Param('raceId') raceId: string,
-    @Body() body: { teamCode: number },
-  ) {
-    return this.ingestionService.ingestCompleteRace(
-      +year,
-      raceId,
-      body.teamCode,
-    );
-  }
-   */
 }

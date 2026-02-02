@@ -18,4 +18,9 @@ export class ResultRepository {
     const result = await this.resultModel.deleteMany({ race: raceId }).exec();
     return result.deletedCount || 0;
   }
+
+  async createMany(results: Partial<Result>[]): Promise<void> {
+    if (results.length === 0) return;
+    await this.resultModel.insertMany(results);
+  }
 }

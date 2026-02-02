@@ -16,7 +16,7 @@ export type FicrTempoDto = {
   Categoria: string;
   TipoTurno: number;
   TipoGara: number;
-  Staffetta: false;
+  Staffetta: boolean;
   Sigla: string;
   Pos: number;
 };

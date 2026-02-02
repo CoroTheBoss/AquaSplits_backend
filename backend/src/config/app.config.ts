@@ -18,11 +18,6 @@ export class AppConfig {
   MONGODB_URI: string;
 }
 
-/**
- * Used by `ConfigModule.forRoot({ validate })`.
- * Nest passes all env vars into this function; if validation fails, the app
- * throws during boot so you don’t run with a broken config.
- */
 export function validateEnv(config: Record<string, unknown>): AppConfig {
   const validated = plainToInstance(AppConfig, config, {
     enableImplicitConversion: false,

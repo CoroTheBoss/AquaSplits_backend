@@ -11,6 +11,13 @@ import type { AppConfig } from '../config/app.config';
 import { CompetitionRepository } from './repository/competition.repository';
 import { Race, RaceSchema } from './schema/race.schema';
 import { RaceRepository } from './repository/race.repository';
+import { Relay, RelaySchema } from './schema/relay.schema';
+import { RelayRepository } from './repository/relay.repository';
+import {
+  IngestionOperation,
+  IngestionOperationSchema,
+} from './schema/ingestion-operation.schema';
+import { IngestionOperationRepository } from './repository/ingestion-operation.repository';
 
 @Module({
   imports: [
@@ -25,6 +32,8 @@ import { RaceRepository } from './repository/race.repository';
       { name: Competition.name, schema: CompetitionSchema },
       { name: Result.name, schema: ResultSchema },
       { name: Race.name, schema: RaceSchema },
+      { name: Relay.name, schema: RelaySchema },
+      { name: IngestionOperation.name, schema: IngestionOperationSchema },
     ]),
   ],
   providers: [
@@ -32,6 +41,8 @@ import { RaceRepository } from './repository/race.repository';
     CompetitionRepository,
     ResultRepository,
     RaceRepository,
+    RelayRepository,
+    IngestionOperationRepository,
   ],
   exports: [
     MongooseModule,
@@ -39,6 +50,8 @@ import { RaceRepository } from './repository/race.repository';
     CompetitionRepository,
     ResultRepository,
     RaceRepository,
+    RelayRepository,
+    IngestionOperationRepository,
   ],
 })
 export class DatabaseModule {}

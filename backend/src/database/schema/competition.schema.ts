@@ -5,6 +5,8 @@ import {
 } from '../../type/timestamp.type';
 import { Source } from '../../type/source.enum';
 import { PoolLength } from '../../type/pool-length.enum';
+import mongoose, { Types } from 'mongoose';
+import { SourceStatus } from '../../type/source-status.type';
 
 @Schema({ timestamps: true })
 export class Competition {
@@ -31,6 +33,12 @@ export class Competition {
 
   @Prop()
   source: Source; // e.g. 'ficr'
+
+  @Prop()
+  sourceStatuses?: SourceStatus[];
+
+  @Prop({ type: [mongoose.Types.ObjectId], ref: 'Race', default: [] })
+  races?: Types.ObjectId[];
 }
 
 export const CompetitionSchema = SchemaFactory.createForClass(Competition);

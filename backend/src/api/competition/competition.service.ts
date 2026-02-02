@@ -7,7 +7,9 @@ import { CompetitionSearchQuery } from './competition.types';
 export class CompetitionService {
   constructor(private readonly competitionRepository: CompetitionRepository) {}
 
-  async findAll(searchDto: CompetitionSearchQuery): Promise<CompetitionWithId[]> {
+  async findAll(
+    searchDto: CompetitionSearchQuery,
+  ): Promise<CompetitionWithId[]> {
     const { search } = searchDto;
     const year = searchDto.year != null ? Number(searchDto.year) : undefined;
     const limit = Number(searchDto.limit ?? 50) || 50;

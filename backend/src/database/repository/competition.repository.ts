@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import {
   Competition,
   CompetitionDocument,
   CompetitionWithId,
 } from '../schema/competition.schema';
+import { Source } from '../../type/source.enum';
+import { IngestionStatus } from '../../type/ingestion-status.enum';
 
 @Injectable()
 export class CompetitionRepository {
@@ -18,9 +20,13 @@ export class CompetitionRepository {
     return this.raceModel.findById(id).lean<CompetitionWithId>().exec();
   }
 
-  async findByFicrId(ficrRaceId: string): Promise<CompetitionWithId | null> {
+  async findByFicrId(
+    ficrId: number | string,
+  ): Promise<CompetitionWithId | null> {
     return this.raceModel
-      .findOne({ ficrRaceId })
+      .findOne({
+        ficrId: typeof ficrId === 'string' ? parseInt(ficrId, 10) : ficrId,
+      })
       .lean<CompetitionWithId>()
       .exec();
   }
@@ -57,10 +63,10 @@ export class CompetitionRepository {
 
   async upsertOne(data: Partial<Competition>): Promise<CompetitionWithId> {
     if (!data.ficrId && !data.source) {
-      throw new Error('ficrRaceId or source is required for upsert');
+      throw new Error('ficrId or source is required for upsert');
     }
     const filter = data.ficrId
-      ? { ficrRaceId: data.ficrId }
+      ? { ficrId: data.ficrId }
       : { name: data.name, date: data.date, source: data.source };
 
     return this.raceModel
@@ -70,50 +76,6 @@ export class CompetitionRepository {
       })
       .lean<CompetitionWithId>()
       .exec();
-  }
-
-  async bulkUpsert(
-    races: Partial<Competition>[],
-  ): Promise<CompetitionWithId[]> {
-    const operations = races.map((race) => {
-      const filter = race.ficrId
-        ? { ficrRaceId: race.ficrId }
-        : { name: race.name, date: race.date, source: race.source };
-
-      return {
-        updateOne: {
-          filter,
-          update: { $set: race },
-          upsert: true,
-        },
-      };
-    });
-
-    await this.raceModel.bulkWrite(operations);
-
-    // Return the upserted documents
-    const ficrIds = races.map((r) => r.ficrId).filter(Boolean);
-
-    if (ficrIds.length > 0) {
-      return this.raceModel
-        .find({ ficrRaceId: { $in: ficrIds } })
-        .lean<CompetitionWithId[]>()
-        .exec();
-    }
-
-    // Fallback: return by name/date/source if no ficrIds
-    return Promise.all(
-      races.map((race) =>
-        this.raceModel
-          .findOne({
-            name: race.name,
-            date: race.date,
-            source: race.source,
-          })
-          .lean<CompetitionWithId>()
-          .exec(),
-      ),
-    ).then((results) => results.filter(Boolean) as CompetitionWithId[]);
   }
 
   async count(): Promise<number> {
@@ -127,5 +89,77 @@ export class CompetitionRepository {
       .sort({ date: -1 })
       .lean<CompetitionWithId[]>()
       .exec();
+  }
+
+  async updateRaces(
+    competitionId: string | Types.ObjectId,
+    races: Types.ObjectId[],
+  ): Promise<void> {
+    const id =
+      typeof competitionId === 'string'
+        ? competitionId
+        : competitionId.toString();
+
+    await this.raceModel
+      .findByIdAndUpdate(
+        id,
+        {
+          $addToSet: { races: { $each: races } },
+        },
+        { new: true },
+      )
+      .exec();
+  }
+
+  async updateSourceStatus(
+    competitionId: string | Types.ObjectId,
+    source: Source,
+    status: IngestionStatus,
+  ): Promise<void> {
+    const id =
+      typeof competitionId === 'string'
+        ? competitionId
+        : competitionId.toString();
+
+    const now = new Date();
+    const updateData = {
+      'sourceStatuses.$[elem].lastIngestedAt': now,
+      'sourceStatuses.$[elem].lastStatus': status,
+    };
+
+    // First, try to update existing source status
+    const updateResult = await this.raceModel
+      .updateOne(
+        { _id: id },
+        { $set: updateData },
+        {
+          arrayFilters: [{ 'elem.source': source }],
+        },
+      )
+      .exec();
+
+    // If update didn't affect any document, the source doesn't exist - add it
+    if (updateResult.modifiedCount === 0) {
+      const competition = await this.findById(id);
+      if (competition) {
+        const hasSource = competition.sourceStatuses?.some(
+          (s) => s.source === source,
+        );
+        if (!hasSource) {
+          await this.raceModel.updateOne(
+            { _id: id },
+            {
+              $push: {
+                sourceStatuses: {
+                  source,
+                  lastIngestedAt: now,
+                  lastStatus: status,
+                },
+              },
+            },
+          ).exec();
+        }
+      }
+    }
   }
 }

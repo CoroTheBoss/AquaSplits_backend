@@ -1,4 +1,4 @@
-export type FicrRaceDto = {
+export type FicrCompetitionDto = {
   Year: number;
   TeamCode: number;
   Description: string;

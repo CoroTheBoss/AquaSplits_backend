@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
-import { FicrRaceDto } from './dto/ficr-race.dto';
+import { FicrCompetitionDto } from './dto/ficr-competition.dto';
 import { FicrResponse } from './dto/ficr.response';
 import {
   FicrAthleteEntryListDto,
@@ -11,9 +11,9 @@ import {
 export class FicrClient {
   private readonly baseUrl = 'https://apinuoto.ficr.it/NUO/mpcache-30';
 
-  async fetchSchedule(year: number): Promise<FicrRaceDto[]> {
+  async fetchSchedule(year: number): Promise<FicrCompetitionDto[]> {
     const url = `${this.baseUrl}/get/schedule/${year}/*/*`;
-    const response = await axios.get<FicrResponse<FicrRaceDto[]>>(url);
+    const response = await axios.get<FicrResponse<FicrCompetitionDto[]>>(url);
 
     if (!response.data.status) {
       throw new Error(`FICR API error: ${response.data.message}`);
@@ -29,13 +29,15 @@ export class FicrClient {
   ): Promise<FicrAthleteEntryListDto[]> {
     const url = `${this.baseUrl}/get/allathletes/${year}/${teamCode}/${raceId}`;
     const response =
-      await axios.get<FicrResponse<FicrAthleteEntryListDto[]>>(url);
+      await axios.get<FicrResponse<{ entrylist: FicrAthleteEntryListDto[] }>>(
+        url,
+      );
 
     if (!response.data.status) {
       throw new Error(`FICR API error: ${response.data.message}`);
     }
 
-    return response.data.data;
+    return response.data.data.entrylist;
   }
 
   async fetchAthleteResults(

@@ -56,4 +56,19 @@ export class AthleteRepository {
       .lean<AthleteWithId[]>()
       .exec();
   }
+
+  async upsertOne(data: Partial<Athlete>): Promise<AthleteWithId> {
+    if (!data.code) {
+      throw new Error('code is required for upsert');
+    }
+    const filter = { code: data.code };
+
+    return this.athleteModel
+      .findOneAndUpdate(filter, data, {
+        upsert: true,
+        new: true,
+      })
+      .lean<AthleteWithId>()
+      .exec();
+  }
 }
