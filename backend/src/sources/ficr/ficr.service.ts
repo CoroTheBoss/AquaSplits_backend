@@ -22,6 +22,7 @@ import {
   RelayWithId,
 } from '../../database/schema/relay.schema';
 import { PoolLength } from '../../type/pool-length.enum';
+import { TimeParser } from '../../utils/time-parser';
 
 @Injectable()
 export class FicrService {
@@ -41,7 +42,13 @@ export class FicrService {
   ) {}
 
   /**
-   * Utility to add delay between API calls
+   * Pauses execution for a specified amount of time.
+   *
+   * @param ms - The delay duration in milliseconds.
+   * @returns A Promise that resolves after the given time has elapsed.
+   *
+   * @example
+   * await this.delay(1000); // waits for 1 second
    */
   private async delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -72,6 +79,30 @@ export class FicrService {
     this.logger.log(`Completed FICR ingestion for year ${year}`);
   }
 
+  /**
+   * Ingests a swimming competition from an external source (FICR) into the system.
+   *
+   * The ingestion process follows these steps:
+   * 1. Parses the competition DTO into the internal format.
+   * 2. Checks if the competition should be skipped (e.g., already ingested or invalid).
+   * 3. Upserts the competition in the database to obtain its ID.
+   * 4. Creates an ingestion operation record to track progress.
+   * 5. Executes ingestion steps in order:
+   *    - Competition metadata
+   *    - Events within the competition
+   *    - Results for each event
+   * 6. Updates the competition document with races and final status.
+   * 7. Handles errors by marking the ingestion operation and competition source status as failed.
+   *
+   * @param competitionDto - The raw competition data from FICR.
+   * @param year - The year of the competition, used for processing events and results.
+   * @returns A Promise that resolves when the competition has been ingested successfully, or rejects if an error occurs.
+   *
+   * @throws Error if any step of the ingestion fails; the operation status will be updated accordingly.
+   *
+   * @example
+   * await this.ingestCompetition(ficrCompetitionDto, 2026);
+   */
   private async ingestCompetition(
     competitionDto: FicrCompetitionDto,
     year: number,
@@ -179,6 +210,23 @@ export class FicrService {
     }
   }
 
+  /**
+   * Determines whether a competition should be skipped during ingestion.
+   *
+   * The competition will be skipped if:
+   * 1. The competition date is in the future (less than 24 hours old).
+   * 2. The competition has already been ingested successfully from FICR (status COMPLETED).
+   *
+   * @param ficrId - The ID of the competition from the FICR source.
+   * @param competitionData - Partial competition data, including at least the date and name.
+   * @returns A Promise resolving to `true` if the competition should be skipped, `false` otherwise.
+   *
+   * @example
+   * const skip = await this.shouldSkipCompetition(12345, competitionData);
+   * if (skip) {
+   *   console.log('Skipping ingestion for this competition.');
+   * }
+   */
   private async shouldSkipCompetition(
     ficrId: number,
     competitionData: Partial<CompetitionDocument>,
@@ -213,6 +261,21 @@ export class FicrService {
     return false;
   }
 
+  /**
+   * Executes the ingestion step for a competition.
+   *
+   * This step updates the ingestion operation status to indicate the competition
+   * is being processed and performs the actual upsert of the competition data
+   * in the database.
+   *
+   * In case of an error, the ingestion operation is marked as FAILED and the
+   * error is rethrown.
+   *
+   * @param operationId - The ID of the ingestion operation tracking this process.
+   * @param competitionId - The ID of the competition being ingested.
+   * @param competitionData - Partial competition data to upsert.
+   * @returns A Promise that resolves when the competition step has been completed successfully.
+   */
   private async ingestCompetitionStep(
     operationId: Types.ObjectId,
     competitionId: Types.ObjectId,
@@ -226,7 +289,7 @@ export class FicrService {
         IngestionStep.COMPETITION,
       );
 
-      // Do the actual work - upsert competition
+      // Upsert competition
       await this.competitionRepository.upsertOne(competitionData);
     } catch (error) {
       const errorMessage =
@@ -242,6 +305,20 @@ export class FicrService {
     }
   }
 
+  /**
+   * Executes the ingestion step for the events of a competition.
+   *
+   * This step updates the ingestion operation status to indicate events are being processed,
+   * fetches the list of athlete entries from the external source (FICR), and returns it.
+   *
+   * In case of an error, the ingestion operation is marked as FAILED and the error is rethrown.
+   *
+   * @param operationId - The ID of the ingestion operation tracking this process.
+   * @param competitionId - The ID of the competition being ingested.
+   * @param competitionDto - The raw competition data from FICR.
+   * @param year - The year of the competition, used for fetching entries.
+   * @returns A Promise that resolves to the list of athlete entries for the competition.
+   */
   private async ingestEventsStep(
     operationId: Types.ObjectId,
     competitionId: Types.ObjectId,
@@ -256,7 +333,7 @@ export class FicrService {
         IngestionStep.EVENTS,
       );
 
-      // Do the actual work - fetch entry list
+      // Fetch entry list
       const entryList = await this.client.fetchEntryList(
         competitionDto.TeamCode,
         year,
@@ -284,6 +361,39 @@ export class FicrService {
     }
   }
 
+  /**
+   * Executes the ingestion step for athlete results in a competition.
+   *
+   * This step performs the following:
+   * 1. Updates the ingestion operation status to indicate result processing has started.
+   * 2. Iterates over all athlete entries and processes their individual results.
+   *    - Tracks the number of processed and failed athletes.
+   *    - Aggregates created results and collects associated race IDs.
+   * 3. Processes relay results after all individual athletes have been handled.
+   *
+   * The method handles errors for individual athletes gracefully, allowing ingestion
+   * to continue for other athletes, while logging failures.
+   *
+   * @param operationId - The ID of the ingestion operation tracking this process.
+   * @param competitionId - The ID of the competition being ingested.
+   * @param competitionDto - The raw competition data from FICR.
+   * @param year - The year of the competition, used for processing results.
+   * @param entryList - The list of athlete entries to process.
+   * @returns A Promise resolving to an object containing:
+   *   - processedAthletes: number of athletes successfully processed
+   *   - failedAthletes: number of athletes that failed processing
+   *   - resultsCreated: total number of results created
+   *   - races: list of unique race IDs created during ingestion
+   *
+   * @example
+   * const { processedAthletes, failedAthletes } = await this.ingestResultsStep(
+   *   operationId,
+   *   competitionId,
+   *   competitionDto,
+   *   2026,
+   *   entryList,
+   * );
+   */
   private async ingestResultsStep(
     operationId: Types.ObjectId,
     competitionId: Types.ObjectId,
@@ -313,7 +423,7 @@ export class FicrService {
       tempi: FicrTempoDto[];
     }> = [];
 
-    // Do the actual work - process athlete results
+    // Process athlete results
     await asyncForEach(entryList, async (athleteEntry, athleteIndex) => {
       try {
         if (athleteIndex > 0) {
@@ -357,6 +467,40 @@ export class FicrService {
     };
   }
 
+  /**
+   * Processes the results of a single athlete for a given competition.
+   *
+   * This method performs the following steps:
+   * 1. Fetches the athlete's results from the external source (FICR).
+   * 2. Parses and upserts the athlete in the local database.
+   * 3. Groups the results by event and processes each event:
+   *    - Finds or creates the corresponding race.
+   *    - Determines if the event is a relay or individual race.
+   *    - For individual events:
+   *       - Sorts splits by distance.
+   *       - Converts split times to milliseconds using TimeParser.
+   *       - Builds final result data including category, rank, and splits.
+   *    - For relay events:
+   *       - Aggregates relay timing data for later processing.
+   * 4. Bulk creates result entries in the database.
+   *
+   * @param operationId - The ID of the ingestion operation tracking this process.
+   * @param competitionDto - The raw competition data from FICR.
+   * @param year - The year of the competition, used for processing results.
+   * @param athleteEntry - The athlete entry information to process.
+   * @returns A Promise resolving to an object containing:
+   *   - resultsCount: number of individual results created for this athlete
+   *   - raceIds: list of race IDs associated with the processed results
+   *   - relayData: array of relay entries to be processed later
+   *
+   * @example
+   * const { resultsCount, raceIds, relayData } = await this.processAthleteResults(
+   *   operationId,
+   *   competitionDto,
+   *   2026,
+   *   athleteEntry,
+   * );
+   */
   private async processAthleteResults(
     operationId: Types.ObjectId,
     competitionDto: FicrCompetitionDto,
@@ -471,7 +615,7 @@ export class FicrService {
         const splits = sortedTempi.map((t) => ({
           distance: t.Metri,
           displayTime: t.Tempo.trim(),
-          millis: this.parser.timeToMillis(t.Tempo.trim()),
+          millis: TimeParser.toMillis(t.Tempo.trim()),
         }));
 
         // Final split is the result time
@@ -505,7 +649,24 @@ export class FicrService {
     };
   }
 
-  /** Groups relay tempi by (Categoria, TipoGara, Corsia, Batteria); each group = one relay team. */
+  /**
+   * Processes relay events for a competition.
+   *
+   * This method performs the following steps:
+   * 1. Collects and deduplicates all relay timing data from athletes.
+   * 2. Groups relay tempi by relay characteristics (category, lane, heat, etc.).
+   * 3. Resolves the race for each relay group.
+   * 4. Builds a relay document with leg assignments and split times.
+   * 5. Finds or creates the relay in the database.
+   * 6. If a new relay is created, generates corresponding results for each leg.
+   *
+   * @param competitionId - The ID of the competition for which relays are being processed.
+   * @param relayData - Array of relay timing entries, including athlete IDs, race IDs, and split times.
+   * @returns A Promise that resolves once all relays and leg results have been processed and persisted.
+   *
+   * @example
+   * await this.processRelays(competitionId, relayData);
+   */
   private async processRelays(
     competitionId: Types.ObjectId,
     relayData: Array<{
@@ -516,62 +677,58 @@ export class FicrService {
   ): Promise<void> {
     if (!relayData.length) return;
 
-    const relayTempi = this.collectRelayTempi(relayData);
-    const relayGroups = this.groupTempiByRelay(relayTempi);
+    // 1) Group relay tempi by relay (categoria+tipo_gara+batteria+corsia)
+    const relayGroups = this.groupTempiByRelay(relayData);
     let relaysCreated = 0;
     let legResultsCreated = 0;
 
-    await asyncForEach(Array.from(relayGroups.values()), async (group) => {
-      const raceId = this.getRaceIdForGroup(relayData, group);
-      if (!raceId) {
-        this.logger.warn(
-          `Could not resolve raceId for relay ${group[0].Categoria}_${group[0].TipoGara}_${group[0].Corsia}_${group[0].Batteria}`,
-        );
-        return;
-      }
-
-      const race = await this.raceRepository.findById(raceId);
-      if (!race) {
-        this.logger.warn(`Race ${raceId.toString()} not found for relay`);
-        return;
-      }
-
-      const athleteByLeg = this.resolveAthleteByLeg(relayData, group);
-      const uniqueTempi = this.deduplicateTempi(group);
-      const byLeg = this.groupByLeg(uniqueTempi);
-
-      const category = group[0].Categoria?.trim() ?? '';
-      const relayDoc = this.buildRelayDoc(
-        competitionId,
-        raceId,
-        category,
-        race.legs,
-        race.lapDistance,
-        byLeg,
-        athleteByLeg,
-      );
-
-      if (!relayDoc) return;
-
-      const { relay: savedRelay, created } =
-        await this.relayRepository.findOrCreate(relayDoc);
-      if (created) {
-        relaysCreated += 1;
-        const legResults = (savedRelay.legs ?? []).map((l) => ({
-          athlete: l.athlete,
-          race: savedRelay.race,
-          relay: savedRelay._id,
-          leg: l.leg,
-          category: savedRelay.category,
-          displayTime: l.displayTime ?? '0.0',
-          millis: l.millis ?? 0,
-        }));
-        if (legResults.length > 0) {
-          await this.resultRepository.createMany(legResults);
-          legResultsCreated += legResults.length;
+    // 2) Process each relay group
+    await asyncForEach(
+      Array.from(relayGroups.values()),
+      async ({ raceId, tempi: group }) => {
+        const race = await this.raceRepository.findById(raceId);
+        if (!race) {
+          this.logger.warn(`Race ${raceId.toString()} not found for relay`);
+          return;
         }
-      }
-    });
+
+        const athleteByLeg = this.resolveAthleteByLeg(relayData, group);
+        const uniqueTempi = this.deduplicateTempi(group);
+        const byLeg = this.groupByLeg(uniqueTempi);
+
+        const category = group[0].Categoria?.trim() ?? '';
+        const relayDoc = this.buildRelayDoc(
+          competitionId,
+          raceId,
+          category,
+          race.legs,
+          race.lapDistance,
+          byLeg,
+          athleteByLeg,
+        );
+
+        if (!relayDoc) return;
+
+        const { relay: savedRelay, created } =
+          await this.relayRepository.findOrCreate(relayDoc);
+        if (created) {
+          relaysCreated += 1;
+          const legResults = (savedRelay.legs ?? []).map((l) => ({
+            athlete: l.athlete,
+            race: savedRelay.race,
+            relay: savedRelay._id,
+            leg: l.leg,
+            category: savedRelay.category,
+            displayTime: l.displayTime,
+            millis: l.millis,
+          }));
+          if (legResults.length > 0) {
+            await this.resultRepository.createMany(legResults);
+            legResultsCreated += legResults.length;
+          }
+        }
+      },
+    );
 
     if (relaysCreated > 0) {
       this.logger.log(
@@ -580,71 +737,59 @@ export class FicrService {
     }
   }
 
-  /** Returns raceId for the relay group by matching the first tempo to relayData. */
-  private getRaceIdForGroup(
-    relayData: Array<{ raceId: Types.ObjectId; tempi: FicrTempoDto[] }>,
-    group: FicrTempoDto[],
-  ): Types.ObjectId | null {
-    if (group.length === 0) return null;
-
-    const ref = group[0];
-    let resolved: Types.ObjectId | null = null;
-
-    relayData.forEach((entry) => {
-      entry.tempi.forEach((t) => {
-        if (
-          t.Staffetta &&
-          t.Categoria === ref.Categoria &&
-          t.TipoGara === ref.TipoGara &&
-          t.Corsia === ref.Corsia &&
-          t.Batteria === ref.Batteria
-        ) {
-          resolved = entry.raceId;
-        }
-      });
-    });
-
-    return resolved;
-  }
-
-  /** Flattens all relay tempi from relayData (one array per athlete) into a single array. */
-  private collectRelayTempi(
+  /**
+   * Groups relay tempi by relay characteristics (categoria + tipo_gara + batteria + corsia),
+   * keeping the raceId from the relay data entry each tempo belongs to.
+   *
+   * Only tempi with Staffetta = true are included. All tempi in a group share the same race.
+   *
+   * @param relayData - Array of relay entries, each containing athleteId, raceId, and tempi.
+   * @returns A Map from relay key to { raceId, tempi } for that relay.
+   *
+   * @example
+   * const relayGroups = this.groupTempiByRelay(relayData);
+   */
+  private groupTempiByRelay(
     relayData: Array<{
       athleteId: Types.ObjectId;
       raceId: Types.ObjectId;
       tempi: FicrTempoDto[];
     }>,
-  ): FicrTempoDto[] {
-    const result: FicrTempoDto[] = [];
+  ): Map<string, { raceId: Types.ObjectId; tempi: FicrTempoDto[] }> {
+    const groups = new Map<
+      string,
+      { raceId: Types.ObjectId; tempi: FicrTempoDto[] }
+    >();
 
     relayData.forEach((entry) => {
       entry.tempi.forEach((t) => {
-        if (t.Staffetta) {
-          result.push(t);
+        if (!t.Staffetta) return;
+        const key = `${t.Categoria}_${t.TipoGara}_${t.Batteria}_${t.Corsia}_`;
+        const existing = groups.get(key);
+        if (existing) {
+          existing.tempi.push(t);
+        } else {
+          groups.set(key, { raceId: entry.raceId, tempi: [t] });
         }
       });
-    });
-
-    return result;
-  }
-
-  /** Groups tempi by relay key (Categoria_TipoGara_Corsia_Batteria). */
-  private groupTempiByRelay(
-    tempi: FicrTempoDto[],
-  ): Map<string, FicrTempoDto[]> {
-    const groups = new Map<string, FicrTempoDto[]>();
-
-    tempi.forEach((t) => {
-      const key = `${t.Categoria}_${t.TipoGara}_${t.Corsia}_${t.Batteria}`;
-      const group = groups.get(key) ?? [];
-      group.push(t);
-      groups.set(key, group);
     });
 
     return groups;
   }
 
-  /** Maps leg number → athleteId by matching relayData tempi to this group and using Frazione. */
+  /**
+   * Maps athletes to their respective legs in a relay group.
+   *
+   * For a given relay group, identifies which athlete swam each leg based on
+   * matching category, event type, lane, and heat, and resolves their leg number.
+   *
+   * @param relayData - Array of relay entries, each containing athleteId and tempi.
+   * @param group - Array of tempi representing a single relay group.
+   * @returns A Map where the key is the leg number and the value is the athlete's ID.
+   *
+   * @example
+   * const athleteByLeg = this.resolveAthleteByLeg(relayData, relayGroup);
+   */
   private resolveAthleteByLeg(
     relayData: Array<{ athleteId: Types.ObjectId; tempi: FicrTempoDto[] }>,
     group: FicrTempoDto[],
@@ -666,9 +811,9 @@ export class FicrService {
 
       if (relevantTempi.length === 0) return;
 
-      const leg = this.resolveAthleteLeg(relevantTempi);
+      const leg = relevantTempi[0].Frazione;
 
-      if (leg && !athleteByLeg.has(leg)) {
+      if (!athleteByLeg.has(leg)) {
         athleteByLeg.set(leg, entry.athleteId);
       }
     });
@@ -676,34 +821,23 @@ export class FicrService {
     return athleteByLeg;
   }
 
-  /** Picks the leg (Frazione) that appears most often in this athlete's tempi. */
-  private resolveAthleteLeg(tempi: FicrTempoDto[]): number | null {
-    const counts = new Map<number, number>();
-
-    tempi.forEach((t) => {
-      if (!t.Staffetta) return;
-      counts.set(t.Frazione, (counts.get(t.Frazione) ?? 0) + 1);
-    });
-
-    let resolved: number | null = null;
-    let max = 0;
-
-    counts.forEach((count, leg) => {
-      if (count > max) {
-        max = count;
-        resolved = leg;
-      }
-    });
-
-    return resolved;
-  }
-
-  /** Removes duplicate splits: the same (Frazione, Metri, Tempo) appears once per athlete, we keep one per (leg, distance, time). */
+  /**
+   * Removes duplicate relay tempi from the provided array.
+   *
+   * Duplicates are identified by the combination of fraction (Frazione), distance (Metri),
+   * and recorded time (Tempo). Only the first occurrence of each unique combination is kept.
+   *
+   * @param tempi - Array of relay tempi to deduplicate.
+   * @returns A new array containing only unique tempi.
+   *
+   * @example
+   * const uniqueTempi = this.deduplicateTempi(relayTempi);
+   */
   private deduplicateTempi(tempi: FicrTempoDto[]): FicrTempoDto[] {
     const map = new Map<string, FicrTempoDto>();
 
     tempi.forEach((t) => {
-      const key = `${t.Frazione}_${t.Metri}_${t.Tempo}`;
+      const key = `${t.Frazione}_${t.Metri}`;
       if (!map.has(key)) {
         map.set(key, t);
       }
@@ -712,7 +846,18 @@ export class FicrService {
     return Array.from(map.values());
   }
 
-  /** Groups splits by leg number (Frazione). Used for leg times and handoff cumulative times. */
+  /**
+   * Groups relay tempi by leg number (Frazione).
+   *
+   * Organizes the provided tempi into a map where each key is a leg number
+   * and the value is an array of tempi corresponding to that leg.
+   *
+   * @param tempi - Array of relay tempi to group.
+   * @returns A Map with leg numbers as keys and arrays of tempi as values.
+   *
+   * @example
+   * const tempiByLeg = this.groupByLeg(relayTempi);
+   */
   private groupByLeg(tempi: FicrTempoDto[]): Map<number, FicrTempoDto[]> {
     const map = new Map<number, FicrTempoDto[]>();
 
@@ -725,7 +870,25 @@ export class FicrService {
     return map;
   }
 
-  /** Builds one relay document from byLeg, athleteByLeg, and race lap/leg config. */
+  /**
+   * Builds a relay document from grouped relay tempi and athlete assignments.
+   *
+   * This method constructs a Partial<RelayWithId> object representing the relay,
+   * including legs, splits, total time, rank, and team information.
+   * Returns null if the relay data is invalid (e.g., missing legs or inconsistent splits).
+   *
+   * @param competitionId - The ID of the competition.
+   * @param raceId - The ID of the race associated with the relay.
+   * @param category - The category of the relay (e.g., age group or gender).
+   * @param numLegs - Expected number of legs in the relay.
+   * @param lapDistance - Distance of each lap in the pool.
+   * @param byLeg - Map of leg number to array of tempi for that leg.
+   * @param athleteByLeg - Map of leg number to athlete ID swimming that leg.
+   * @returns A Partial<RelayWithId> representing the relay, or null if invalid.
+   *
+   * @example
+   * const relayDoc = this.buildRelayDoc(competitionId, raceId, 'M', 4, 50, byLeg, athleteByLeg);
+   */
   private buildRelayDoc(
     competitionId: Types.ObjectId,
     raceId: Types.ObjectId,
@@ -768,7 +931,35 @@ export class FicrService {
     };
   }
 
-  /** Leg times and splits from handoff distances (lapDistance × 1..numLegs). Uses cumulative split at each handoff. */
+  /**
+   * Constructs the legs and split times for a relay based on individual leg tempi.
+   *
+   * This method calculates:
+   * 1. Cumulative time at each handoff distance.
+   * 2. Individual leg times by subtracting previous cumulative times.
+   * 3. RelayLeg objects for each athlete, including display time and milliseconds.
+   * 4. Split times corresponding to each handoff distance.
+   * 5. Final relay time, rank, and team information if available.
+   *
+   * @param numLegs - Number of legs in the relay.
+   * @param lapDistance - Distance of each lap in the pool.
+   * @param byLeg - Map of leg number to array of tempi for that leg.
+   * @param athleteByLeg - Map of leg number to athlete ID swimming that leg.
+   * @returns An object containing:
+   *   - legs: Array of RelayLeg objects with times per leg.
+   *   - splits: Array of cumulative split times at each handoff distance.
+   *   - finalTime: Total relay time (display and milliseconds), or null if not computable.
+   *   - rank: Optional rank of the relay team.
+   *   - team: Optional team name.
+   *
+   * @example
+   * const { legs, splits, finalTime } = this.buildLegsAndSplits(
+   *   4,
+   *   50,
+   *   byLegMap,
+   *   athleteByLegMap,
+   * );
+   */
   private buildLegsAndSplits(
     numLegs: number,
     lapDistance: number,
@@ -789,62 +980,60 @@ export class FicrService {
 
     // Handoff distances: 50, 100, 150, 200 for 4×50; 200, 400, 600, 800 for 4×200
     const handoffDistances: number[] = [];
-    for (let i = 1; i <= numLegs; i++) {
+    Array.from({ length: numLegs }, (_, i) => i + 1).forEach((i) => {
       handoffDistances.push(i * lapDistance);
-    }
+    });
 
-    // Cumulative time at each handoff: take split at that distance from any leg
+    // Cumulative time at each handoff
     const cumulAtHandoff: number[] = [];
-    for (let i = 0; i < numLegs; i++) {
-      const D = handoffDistances[i];
+    handoffDistances.forEach((D) => {
       let millis = 0;
-      const legArrays = Array.from(byLeg.values());
-      legArrays.forEach((tempi) => {
+      Array.from(byLeg.values()).forEach((tempi) => {
         if (millis > 0) return;
         const t = tempi.find((x) => x.Metri === D);
-        if (t) millis = this.parser.timeToMillis(t.Tempo.trim());
+        if (t) millis = TimeParser.toMillis(t.Tempo.trim());
       });
       cumulAtHandoff.push(millis);
-    }
+    });
 
     // Leg time = cumulative at end of this leg minus cumulative at end of previous leg
     const legMillis: number[] = [];
-    for (let i = 0; i < numLegs; i++) {
+    cumulAtHandoff.forEach((cumul, i) => {
       const prev = i === 0 ? 0 : cumulAtHandoff[i - 1];
-      legMillis.push(cumulAtHandoff[i] - prev);
-    }
+      legMillis.push(cumul - prev);
+    });
 
-    for (let leg = 1; leg <= numLegs; leg++) {
+    // Build legs
+    Array.from({ length: numLegs }, (_, i) => i + 1).forEach((leg) => {
       const athleteId = athleteByLeg.get(leg);
       if (!athleteId) {
         this.logger.warn(`Missing athlete for leg ${leg}`);
-        continue;
+        return;
       }
       const legTimeMillis = legMillis[leg - 1] ?? 0;
       legs.push({
         athlete: athleteId,
         leg,
-        displayTime: this.millisToDisplayTime(legTimeMillis),
+        displayTime: TimeParser.toDisplayTime(legTimeMillis),
         millis: legTimeMillis,
       });
-    }
+    });
 
-    // One split per handoff distance: cumulative time at that distance, with the leg that swam to it
-    for (let i = 0; i < numLegs; i++) {
-      const distance = handoffDistances[i];
+    // Build splits
+    handoffDistances.forEach((distance, i) => {
       const millis = cumulAtHandoff[i];
       splits.push({
         distance,
-        displayTime: this.millisToDisplayTime(millis),
+        displayTime: TimeParser.toDisplayTime(millis),
         millis,
         leg: i + 1,
       });
-    }
+    });
 
     if (cumulAtHandoff.length > 0) {
       const lastMillis = cumulAtHandoff[numLegs - 1];
       finalTime = {
-        displayTime: this.millisToDisplayTime(lastMillis),
+        displayTime: TimeParser.toDisplayTime(lastMillis),
         millis: lastMillis,
       };
       const lastLegTempi = byLeg.get(numLegs);
@@ -862,19 +1051,19 @@ export class FicrService {
     return { legs, splits, finalTime, rank, team };
   }
 
-  private millisToDisplayTime(millis: number): string {
-    if (millis <= 0) return '0.0';
-    const totalSeconds = millis / 1000;
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    const secInt = Math.floor(seconds);
-    const centis = Math.round((seconds - secInt) * 100);
-    if (minutes > 0) {
-      return `${minutes}'${secInt.toString().padStart(2, '0')}.${centis.toString().padStart(2, '0')}`;
-    }
-    return `${secInt}.${centis.toString().padStart(2, '0')}`;
-  }
-
+  /**
+   * Validates that a relay has the expected number of legs and correct leg numbering.
+   *
+   * Ensures that the legs array contains exactly the expectedCount of RelayLegs
+   * and that leg numbers are sequential from 1 to expectedCount.
+   *
+   * @param legs - Array of RelayLeg objects to validate.
+   * @param expectedCount - The expected number of legs in the relay.
+   * @returns True if the legs are valid, false otherwise.
+   *
+   * @example
+   * const isValid = this.validateLegs(relayLegs, 4);
+   */
   private validateLegs(legs: RelayLeg[], expectedCount: number): boolean {
     if (legs.length !== expectedCount) return false;
     const nums = legs.map((l) => l.leg).sort((a, b) => a - b);

@@ -5,11 +5,11 @@ import { Stroke } from '../../type/stroke.enum';
 import { Types } from 'mongoose';
 import { Distance } from '../../type/distance.enum';
 import { Source } from '../../type/source.enum';
-import { PoolLength } from '../../type/pool-length.enum';
 import { CompetitionDocument } from '../../database/schema/competition.schema';
 import { FicrAthleteDto } from './dto/ficr-athlete.dto';
 import { AthleteDocument } from '../../database/schema/athlete.schema';
 import { ResultWithId } from '../../database/schema/result.schema';
+import { TimeParser } from '../../utils/time-parser';
 
 @Injectable()
 export class FicrParser {
@@ -62,7 +62,7 @@ export class FicrParser {
       const splits = sortedTempi.map((t) => ({
         distance: t.Metri,
         displayTime: t.Tempo.trim(),
-        millis: this.timeToMillis(t.Tempo.trim()),
+        millis: TimeParser.toMillis(t.Tempo.trim()),
       }));
 
       const finalSplit = splits[splits.length - 1];
@@ -93,7 +93,6 @@ export class FicrParser {
     let totalDistance: Distance | null = null;
     let lapDistance: Distance | null = null;
     let stroke: Stroke | null = null;
-    const legs = isRelay ? 4 : 1;
 
     // For relays, extract distance per leg (e.g., "4x50m" -> 50)
     const relayMatch = normalized.match(/4\s*x\s*(\d+)\s*m/);
@@ -191,60 +190,5 @@ export class FicrParser {
       [Stroke.INDIVIDUAL_MEDLEY]: 'Individual Medley',
     };
     return strokeNames[stroke] || stroke;
-  }
-
-  timeToMillis(timeStr: string): number {
-    if (!timeStr || timeStr.trim() === '') return 0;
-
-    // Normalize: FICR uses apostrophe for minutes (e.g. "2'43.8") – treat same as colon
-    const cleanTime = timeStr.trim().replace(/'/g, ':');
-
-    if (cleanTime.includes(':')) {
-      const parts = cleanTime.split(':');
-      if (parts.length < 2) return 0;
-
-      const minutes = parseInt(parts[0], 10) || 0;
-      const secondsPart = parts[1];
-      const secondsWithMillis = secondsPart.split('.');
-      const seconds = parseInt(secondsWithMillis[0], 10) || 0;
-
-      let millis = 0;
-      if (secondsWithMillis[1]) {
-        const millisStr = secondsWithMillis[1];
-        millis =
-          millisStr.length === 2
-            ? parseInt(millisStr, 10) * 10
-            : parseInt(millisStr, 10);
-      }
-
-      return minutes * 60000 + seconds * 1000 + millis;
-    } else {
-      const parts = cleanTime.split('.');
-      const seconds = parseInt(parts[0], 10) || 0;
-      const millis = parts[1]
-        ? parts[1].length === 2
-          ? parseInt(parts[1], 10) * 10
-          : parseInt(parts[1], 10)
-        : 0;
-      return seconds * 1000 + millis;
-    }
-  }
-
-  private parsePoolLength(
-    input: string | number | undefined,
-  ): PoolLength | undefined {
-    if (!input) return undefined;
-
-    const normalized =
-      typeof input === 'number'
-        ? input
-        : Number(String(input).match(/\d+/)?.[0]);
-
-    const map: Record<number, PoolLength> = {
-      25: PoolLength.L25,
-      50: PoolLength.L50,
-    };
-
-    return map[normalized];
   }
 }
