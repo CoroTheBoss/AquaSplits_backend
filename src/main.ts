@@ -11,6 +11,9 @@ async function bootstrap() {
   const port = portStr ? parseInt(portStr, 10) : 3000;
   const logger = new Logger('Bootstrap');
 
+  // Set global API prefix
+  app.setGlobalPrefix('api');
+
   // Enable CORS for frontend integration
   app.enableCors({
     origin: true,

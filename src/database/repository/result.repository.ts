@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Result, ResultDocument } from '../schema/result.schema';
+import { Result, ResultDocument, ResultWithId } from '../schema/result.schema';
 
 @Injectable()
 export class ResultRepository {
@@ -22,5 +22,27 @@ export class ResultRepository {
   async createMany(results: Partial<Result>[]): Promise<void> {
     if (results.length === 0) return;
     await this.resultModel.insertMany(results);
+  }
+
+  async findByAthlete(athleteId: string | Types.ObjectId): Promise<ResultWithId[]> {
+    const id =
+      typeof athleteId === 'string'
+        ? new Types.ObjectId(athleteId)
+        : athleteId;
+    return this.resultModel
+      .find({ athlete: id, relay: { $exists: false } })
+      .sort({ rank: 1 })
+      .lean<ResultWithId[]>()
+      .exec();
+  }
+
+  async findByRace(raceId: string | Types.ObjectId): Promise<ResultWithId[]> {
+    const id =
+      typeof raceId === 'string' ? new Types.ObjectId(raceId) : raceId;
+    return this.resultModel
+      .find({ race: id, relay: { $exists: false } })
+      .sort({ rank: 1 })
+      .lean<ResultWithId[]>()
+      .exec();
   }
 }

@@ -16,6 +16,11 @@ export class CompetitionController {
     return this.competitionService.findOne(id);
   }
 
+  @Get(':id/races')
+  async findRaces(@Param('id') id: string) {
+    return this.competitionService.findRaces(id);
+  }
+
   @Get('ficr/:ficrRaceId')
   async findByFicrId(@Param('ficrRaceId') ficrRaceId: string) {
     return this.competitionService.findByFicrId(ficrRaceId);

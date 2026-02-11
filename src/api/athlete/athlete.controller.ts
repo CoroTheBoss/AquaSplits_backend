@@ -16,6 +16,16 @@ export class AthleteController {
     return this.athleteService.findOne(id);
   }
 
+  @Get(':id/competitions')
+  async findCompetitions(@Param('id') id: string) {
+    return this.athleteService.findCompetitions(id);
+  }
+
+  @Get(':id/results')
+  async findResults(@Param('id') id: string) {
+    return this.athleteService.findResults(id);
+  }
+
   @Get('ficr/:ficrId')
   async findByFicrId(@Param('ficrId') ficrId: string) {
     return this.athleteService.findByFicrId(ficrId);

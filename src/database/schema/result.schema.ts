@@ -27,7 +27,14 @@ export class Result {
   @Prop({ index: true })
   rank?: number;
 
-  @Prop({ required: true, index: true })
+  @Prop({
+    type: {
+      millis: { type: Number, required: false },
+      displayTime: { type: String, required: false },
+    },
+    required: false,
+    index: true,
+  })
   finalTime?: Time;
 
   @Prop()
@@ -44,6 +51,6 @@ ResultSchema.index(
   { athlete: 1, race: 1, relay: 1, leg: 1 },
   { unique: true },
 );
-ResultSchema.index({ race: 1, millis: 1 });
+ResultSchema.index({ race: 1, 'finalTime.millis': 1 });
 ResultSchema.index({ race: 1, rank: 1 });
 ResultSchema.index({ relay: 1 });

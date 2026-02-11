@@ -84,4 +84,23 @@ export class RelayRepository {
     const created = await this.create(relay);
     return { relay: created, created: true };
   }
+
+  async findById(id: string | Types.ObjectId): Promise<RelayWithId | null> {
+    const relayId =
+      typeof id === 'string' ? new Types.ObjectId(id) : id;
+    return this.relayModel
+      .findById(relayId)
+      .lean<RelayWithId>()
+      .exec();
+  }
+
+  async findByRace(raceId: string | Types.ObjectId): Promise<RelayWithId[]> {
+    const rId =
+      typeof raceId === 'string' ? new Types.ObjectId(raceId) : raceId;
+    return this.relayModel
+      .find({ race: rId })
+      .sort({ rank: 1 })
+      .lean<RelayWithId[]>()
+      .exec();
+  }
 }
