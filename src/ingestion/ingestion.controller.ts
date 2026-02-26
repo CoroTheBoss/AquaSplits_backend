@@ -54,6 +54,6 @@ export class IngestionController {
 
   @Post('feature')
   feature() {
-    console.log('feature_v2');
+    console.log('feature_v3');
   }
 }
