@@ -24,6 +24,7 @@ import {
 import { PoolLength } from '../../type/pool-length.enum';
 import { TimeParser } from '../../utils/time-parser';
 import { ResultWithId } from '../../database/schema/result.schema';
+import { FicrPdfParser } from './ficr.pdf.parser';
 
 @Injectable()
 export class FicrService {
@@ -34,6 +35,7 @@ export class FicrService {
   constructor(
     private readonly client: FicrClient,
     private readonly parser: FicrParser,
+    private readonly pdfParser: FicrPdfParser,
     private readonly competitionRepository: CompetitionRepository,
     private readonly athleteRepository: AthleteRepository,
     private readonly raceRepository: RaceRepository,
@@ -192,7 +194,6 @@ export class FicrService {
 
       const entryList = await this.ingestEventsStep(
         operation._id,
-        competitionId,
         competitionDto,
         year,
       );
@@ -361,14 +362,12 @@ export class FicrService {
    * In case of an error, the ingestion operation is marked as FAILED and the error is rethrown.
    *
    * @param operationId - The ID of the ingestion operation tracking this process.
-   * @param competitionId - The ID of the competition being ingested.
    * @param competitionDto - The raw competition data from FICR.
    * @param year - The year of the competition, used for fetching entries.
    * @returns A Promise that resolves to the list of athlete entries for the competition.
    */
   private async ingestEventsStep(
     operationId: Types.ObjectId,
-    competitionId: Types.ObjectId,
     competitionDto: FicrCompetitionDto,
     year: number,
   ): Promise<FicrAthleteEntryListDto[]> {
@@ -1097,5 +1096,35 @@ export class FicrService {
       (_, i) => i + 1,
     ).join(',');
     return nums.join(',') === expected;
+  }
+
+  async getRelays(teamCode: number, year: number, raceId: number) {
+    const pdfList = await this.client.fetchPdfList(teamCode, year, raceId);
+    await asyncForEach(pdfList, async (pdfInfo) => {
+      if (pdfInfo.cat !== 'RESULT') return;
+
+      const name = pdfInfo.filename?.toLowerCase() ?? '';
+
+      const isRelay = /4x/i.test(name);
+      const isDetailed = /\bdett\b/i.test(name);
+
+      if (!isRelay || !isDetailed) return;
+
+      const pdfData = await this.client.getPdf(pdfInfo.file);
+
+      const parsed =
+        await this.pdfParser.parseRelayPdf(pdfData);
+
+      this.logger.log(
+        `Relay PDF "${pdfInfo.filename}": ${parsed.relays.length} teams, event "${parsed.eventName ?? '?'}"`,
+      );
+      if (parsed.relays.length > 0) {
+        parsed.relays.forEach((r, idx) => {
+          this.logger.debug(
+            `  ${idx + 1}. ${r.rank ?? 'SQ'} ${r.teamName ?? '—'} ${r.displayTime} (${r.legs.length} legs)`,
+          );
+        });
+      }
+    });
   }
 }

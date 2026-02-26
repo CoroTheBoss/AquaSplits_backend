@@ -38,4 +38,22 @@ export class IngestionController {
   async ingestAllFicr() {
     return await this.ingestionService.ingestAllFicr();
   }
+
+  @Post('ficr/test/:year/:teamCode/:competitionId')
+  async testFicrPdfParser(
+    @Param('year') year: string,
+    @Param('teamCode') teamCode: string,
+    @Param('competitionId') competitionId: string,
+  ) {
+    return await this.ingestionService.testFicrPdfParser(
+      +year,
+      +teamCode,
+      +competitionId,
+    );
+  }
+
+  @Post('feature')
+  feature() {
+    console.log('feature');
+  }
 }

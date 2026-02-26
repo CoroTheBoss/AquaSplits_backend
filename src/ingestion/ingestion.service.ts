@@ -23,4 +23,12 @@ export class IngestionService {
       await this.ingestFicr(year);
     }
   }
+
+  async testFicrPdfParser(
+    year: number,
+    teamCode: number,
+    competitionId: number,
+  ) {
+    await this.ficrService.getRelays(teamCode, year, competitionId);
+  }
 }

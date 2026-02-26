@@ -6,6 +6,7 @@ import {
   FicrAthleteEntryListDto,
   FicrAthleteSplitsDto,
 } from './dto/ficr-athlete.dto';
+import { FicrPdfListDto } from './dto/ficr-pdf-list.dto';
 
 @Injectable()
 export class FicrClient {
@@ -54,5 +55,30 @@ export class FicrClient {
     }
 
     return response.data.data;
+  }
+
+  async fetchPdfList(
+    teamCode: number,
+    year: number,
+    raceId: number,
+  ): Promise<FicrPdfListDto[]> {
+    const url = `${this.baseUrl}/get/listpdf/${year}/${teamCode}/${raceId}`;
+    const response = await axios.get<FicrResponse<FicrPdfListDto[]>>(url);
+
+    if (!response.data.status) {
+      throw new Error(`FICR API error: ${response.data.message}`);
+    }
+
+    return response.data.data;
+  }
+
+  async getPdf(relativeUrl: string): Promise<Buffer> {
+    const url = `https://dati.ficr.it/nuoto${relativeUrl}`;
+
+    const response = await axios.get<ArrayBuffer>(url, {
+      responseType: 'arraybuffer',
+    });
+
+    return Buffer.from(response.data);
   }
 }
